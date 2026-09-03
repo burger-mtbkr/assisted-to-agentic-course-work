@@ -68,6 +68,10 @@ Exact request/response DTO shapes are left to the implementation plan, but every
 configuration entry belongs to exactly one application (`applicationId` is a
 required foreign-key-equivalent reference).
 
+Also expose a health check endpoint: `GET /health` — returns 200 with a small
+status payload when the service is up, used to verify the deployed service is
+reachable.
+
 ## Database engine and driver
 
 AWS DynamoDB, a real AWS account — not DynamoDB Local, not in-memory, not

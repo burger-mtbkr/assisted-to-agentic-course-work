@@ -47,6 +47,8 @@ Implement REST CRUD under `/api/v1` for two resources:
 
 Exact request/response DTO shapes are not prescribed — propose them as part of the plan. Every configuration entry must belong to exactly one application, with `applicationId` as a required foreign-key-equivalent reference.
 
+Also expose a health check endpoint: `GET /health` — returns 200 with a small status payload when the service is up, used to verify the deployed service is reachable.
+
 ## Database engine and driver
 
 AWS DynamoDB, using a real AWS account — not DynamoDB Local, not in-memory, not file-based — so the API remains genuinely deployable.
