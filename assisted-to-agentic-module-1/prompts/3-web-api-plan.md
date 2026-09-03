@@ -14,6 +14,7 @@ config-service/
 ├── .env.example                             # AWS_ACCESS_KEY_ID=, AWS_SECRET_ACCESS_KEY=, AWS_REGION=ap-southeast-6
 ├── .env                                     # gitignored, real values, local only
 ├── global.json                              # { "sdk": { "version": "10.0.100", "rollForward": "latestFeature" } } — copied verbatim from income-service
+├── openapi.json                             # static export of the live OpenAPI document, committed for review without running the service
 ├── README.md                                # setup, .env, provisioning, run, Scalar UI, test/coverage commands
 ├── infra/
 │   ├── README.md                            # numbering convention, how to run, idempotency note
@@ -70,7 +71,8 @@ config-service/
     │   │   ├── Common/
     │   │   │   └── ValidationException.cs
     │   │   ├── Applications/
-    │   │   │   └── ApplicationNotFoundException.cs
+    │   │   │   ├── ApplicationNotFoundException.cs
+    │   │   │   └── DuplicateApplicationNameException.cs
     │   │   └── Configurations/
     │   │       ├── ConfigurationNotFoundException.cs
     │   │       └── DuplicateConfigurationKeyException.cs
@@ -259,6 +261,7 @@ app.Run();
 |---|---|---|
 | `ApplicationNotFoundException` | 404 | missing `id`; also thrown by `ConfigurationService` when the parent application doesn't exist |
 | `ConfigurationNotFoundException` | 404 | missing `(applicationId, configKey)` |
+| `DuplicateApplicationNameException` | 409 | `POST /api/v1/applications` with a `name` that already exists |
 | `DuplicateConfigurationKeyException` | 409 | `POST` with a `configKey` that already exists under that application |
 | `ValidationException` | 400 | carries `Errors` dictionary |
 | `ArgumentException` / `ArgumentNullException` | 400 | generic bad-input fallback |
@@ -325,7 +328,7 @@ The spec is silent on these. Resolved in favor of the smallest behavior that sat
 1. **Cascade behavior on `DELETE /applications/{id}`** when configurations exist for it: **reject with 409.** Cascade-deleting is extra logic the spec never asked for; rejecting is simpler and safer, and mirrors income-service's guard-before-delete pattern (`AnyForOrganisation`).
 2. **`configKey` character set** — alphanumeric plus `.`, `_`, `-` (no `/`), validated in `ConfigurationService` since it's a raw path segment.
 3. **List endpoint pagination** — unpaginated full-table Scan for both list endpoints, matching income-service's existing Scan-and-cache model. No pagination logic added since the spec doesn't ask for it.
-4. **`Application.Name` uniqueness** — not enforced (DynamoDB has no native unique constraint without a GSI; income-service's own docs treat GSIs as needing explicit cost sign-off, and the spec doesn't ask for uniqueness). `id` is the true identity.
+4. **`Application.Name` uniqueness** — **enforced**: `ApplicationService.CreateAsync` scans existing applications for a case-sensitive name match (via `IApplicationRepository.GetByName`, implemented over the existing cached `AsQueryable()` — no GSI needed) and throws a new `DuplicateApplicationNameException` (409) if found, before insert. `id` remains the technical identity; `name` is a uniqueness constraint enforced at the service layer, matching the course's reference Python example's `409` behavior on `POST /applications`.
 5. **Provisioning tool approach (§4)** — small C# console project, since it reuses already-approved packages and needs no extra local tooling beyond the .NET SDK already required.
 
 Authentication is intentionally out of scope: the approved dependency list has no auth package (income-service's `Microsoft.AspNetCore.Authentication.JwtBearer` is not on it), and the spec never asked for it — so no auth is being added.

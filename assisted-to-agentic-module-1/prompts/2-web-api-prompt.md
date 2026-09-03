@@ -49,6 +49,10 @@ Exact request/response DTO shapes are not prescribed — propose them as part of
 
 Also expose a health check endpoint: `GET /health` — returns 200 with a small status payload when the service is up, used to verify the deployed service is reachable.
 
+`Application.Name` uniqueness is enforced: `POST /api/v1/applications` with a name that already exists returns `409 Conflict`.
+
+A static OpenAPI spec file (generated from the service's own OpenAPI document) is committed at the service root (`config-service/openapi.json`), alongside the live Scalar UI, so the API surface is reviewable without running the service.
+
 ## Database engine and driver
 
 AWS DynamoDB, using a real AWS account — not DynamoDB Local, not in-memory, not file-based — so the API remains genuinely deployable.

@@ -254,8 +254,11 @@ it directly.
   all exist with real content, each exercise step's output committed separately per
   the "commit before iterating" discipline.
 - `config-service/` builds and its unit test suite passes (`dotnet test`).
-- The two DynamoDB tables exist in AWS (`us-east-1` or wherever confirmed), on-demand
+- The two DynamoDB tables exist in AWS (`ap-southeast-6`, New Zealand), on-demand
   billing, PITR disabled, and the running service can read/write through them
   end-to-end (exercise a create + list call against `/api/v1/applications`).
 - `JOURNAL.md` has one complete entry (all 9 fields) per collaboration, in order.
 - `INTEGRATE.md`'s 6 reflection prompts answered before moving to Module 2.
+
+**Status: all of the above complete** — see `JOURNAL.md` for the full collaboration
+record and `INTEGRATE-REFLECTIONS.md` for the answered reflection prompts.
