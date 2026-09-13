@@ -430,8 +430,22 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+## Assisted to Agentic Modules
 assisted-to-agentic-module-1/examples
 assisted-to-agentic-module-1/slides.pdf
 assisted-to-agentic-module-1/project/INSTRUCTIONS.md
 assisted-to-agentic-module-1/project/INTEGRATE.md
 assisted-to-agentic-module-1/project
+
+assisted-to-agentic-module-2/examples
+assisted-to-agentic-module-2/slides.pdf
+assisted-to-agentic-module-2/project/INSTRUCTIONS.md
+assisted-to-agentic-module-2/project/INTEGRATE.md
+assisted-to-agentic-module-2/project
+
+assisted-to-agentic-module-3/examples
+assisted-to-agentic-module-3/slides.pdf
+assisted-to-agentic-module-3/project/INSTRUCTIONS.md
+assisted-to-agentic-module-3/project/INTEGRATE.md
+assisted-to-agentic-module-3/project
