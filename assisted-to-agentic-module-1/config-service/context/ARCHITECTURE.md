@@ -1,30 +1,86 @@
 # Architecture
 
-<!--
-Instructions to the assistant: derive every section below from the real
-source under src/ConfigApi.Service/ - reference files with @path so claims
-are grounded, not guessed. Keep it to what a new contributor actually needs
-to orient themselves; don't restate the whole codebase.
--->
-
 ## Layers
 
-<!-- TODO: Controller -> Service -> Repository, what each layer owns -->
+Controller -> Service -> Repository, wired up in `Program.cs` via
+`Ignition/*.cs` static extension classes (`ConfigureLogging`,
+`ConfigureDynamoDb`, `ConfigureRepositories`, `ConfigureServices`, in that
+order):
+
+- **Controllers** (`Controllers/Applications`, `Controllers/Configurations`,
+  `Controllers/Health`) - MVC controllers, HTTP concerns only (routing,
+  status codes). Translate service results (`null` = not found, `bool` /
+  `bool?` for conditional outcomes) into `IActionResult`.
+- **Services** (`Services/Applications/ApplicationService`,
+  `Services/Configurations/ConfigurationService`) - business rules: name
+  uniqueness, id/timestamp generation, the delete-with-children guard.
+  Throw domain exceptions for the caller-facing failure cases.
+- **Repositories** (`Repositories/Applications/ApplicationRepository`,
+  `Repositories/Configurations/ConfigurationRepository`) - thin wrappers
+  around the DynamoDB collection abstractions (below); no business logic.
 
 ## Data access
 
-<!-- TODO: the two DynamoDB collection abstractions (single hash key vs.
-composite hash+range key), why both exist, which entity uses which -->
+Two collection abstractions in `Infrastructure/DynamoDb/`, both ported from
+`income-service` and both scan-all-then-filter (no query-by-index yet) with
+a TTL-cached, invalidate-on-write scan (`DynamoDbTableCache`):
+
+- `IDynamoDbCollection<T>` / `DynamoDbCollection<T>` - single partition key
+  (`"id"`). Used for `applications`.
+- `IDynamoDbCompositeKeyCollection<T>` / `DynamoDbCompositeKeyCollection<T>`
+  - partition key + sort key. Added because `income-service`'s original
+  collection type is hard-wired to a single `"id"` key and can't express
+  `configurations`' `(applicationId, configKey)` schema. Used for
+  `configurations` (partition `applicationId`, sort `configKey`).
+
+Both wrap AWS SDK's `TableBuilder`, which requires the key schema declared
+explicitly via `.AddHashKey(...)` (and `.AddRangeKey(...)` for the composite
+variant) before `.Build()` - it does not infer schema from the table. This
+was the source of a real outage during Module 1 (see
+`context/IMPLEMENTATION.md` once written): unit tests mock these interfaces,
+so a missing `AddHashKey` call passed all 55 tests but threw
+`ArgumentOutOfRangeException` on the very first live request.
 
 ## Error handling
 
-<!-- TODO: how domain exceptions map to HTTP status codes -->
+Two different paths produce two different JSON shapes for what are
+conceptually similar errors - worth knowing when integrating a client:
+
+- **Thrown domain exceptions** (`ApplicationNotFoundException`,
+  `ConfigurationNotFoundException`, `DuplicateApplicationNameException`,
+  `DuplicateConfigurationKeyException`, `ValidationException`) are caught
+  centrally by `Middleware/ErrorMiddleware`, mapped to 404/404/409/409/400,
+  and serialized as `{ status, title, detail, error, exceptionType,
+  traceId }`.
+- **`ApplicationsController.Delete`** returns a tri-state result from
+  `ApplicationService.DeleteAsync` (`bool?`: `null` = not found, `false` =
+  conflict because the application still has configuration entries, `true`
+  = deleted) directly as `NotFound()` / `Conflict()` / `NoContent()` -
+  bypassing `ErrorMiddleware`, so that specific 409 comes back as ASP.NET's
+  default `ProblemDetails` shape (`{ type, title, status, traceId }`)
+  instead.
+
+Unhandled exceptions fall through to a generic 500 in `ErrorMiddleware`.
 
 ## API surface
 
-<!-- TODO: brief endpoint overview, pointing at openapi.json/README for
-the full contract rather than duplicating it -->
+REST CRUD under `/api/v1` for `applications` and nested
+`applications/{applicationId}/configurations`, plus a dependency-free
+`GET /health`. Full contract: the committed `openapi.json`, the live
+`/openapi/v1.json`, or the Scalar UI at `/scalar` (dev only) - see
+`config-service/README.md` rather than duplicating the endpoint list here.
 
 ## Key technical decisions
 
-<!-- TODO: decisions worth knowing the "why" of, not just the "what" -->
+- **Two tables, not single-table design** - `applications` and
+  `configurations` are separate DynamoDB tables (matching `income-service`'s
+  pattern), not modeled as one table with composite sort keys.
+- **Scan-and-cache reads, not indexed queries** - both collection types read
+  via a full table scan, cached for `ScanCacheSeconds` (see
+  `appsettings.json`'s `DynamoDB` section) and invalidated on every write.
+  Fine at current scale; would need a GSI/query-based approach if
+  `configurations` grows large per application.
+- **No CORS middleware yet** - `Program.cs` has no `AddCors`/`UseCors` call.
+  Needs adding before the Admin UI (`ui/`, this module) can call the API
+  from a browser running on a different origin.
+- **No authentication/authorization** - see `context/ABOUT.md` Scope.
