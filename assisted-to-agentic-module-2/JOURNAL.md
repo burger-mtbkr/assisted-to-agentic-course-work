@@ -23,3 +23,16 @@
 - Output: filled `context/ARCHITECTURE.md` (Layers, Data access, Error handling, API surface, Key technical decisions)
 - Cost: subscription-based Claude Code session; no per-call token/dollar figure surfaced
 - Reflections: Reading the actual controller/service code (rather than trusting the prior research summary) surfaced two real, previously-undocumented facts: the delete-with-children 409 path returns a different JSON error shape than every other error (bypasses `ErrorMiddleware`, hits ASP.NET's default `ProblemDetails` instead), and there's no CORS middleware yet - which Exercise 5 will need. Neither was wrong information before, just missing - this is exactly the kind of gap a context document is supposed to catch before it causes friction later (the CORS gap in particular would otherwise have been discovered mid-way through building the Admin UI).
+
+## Exercise 3 & 4: config-service/AGENTS.md, context/IMPLEMENTATION.md
+
+- Prompt: self-directed, following the approved plan's Exercise 3 (root AGENTS.md, living document) and Exercise 4 (complete IMPLEMENTATION.md) steps.
+- Tool: Claude Code
+- Mode: Act mode
+- Context: Continued (same session)
+- Model: claude-sonnet-5
+- Input: the Exercise 3 template from `project/INSTRUCTIONS.md`; direct reads of `ConfigApi.Service.csproj`, `appsettings.json`, `Application.cs`/`Configuration.cs` (confirmed no validation attributes exist - matches the empty-value behavior seen in the earlier smoke test), and `git log` for the actual commit-message convention in use.
+- Output: `config-service/AGENTS.md` (created, then updated to list `IMPLEMENTATION.md` once it existed) and `context/IMPLEMENTATION.md` (Technology stack, Configuration and credentials, Validation, Testing, Admin UI stack, Development workflow).
+- Cost: subscription-based Claude Code session; no per-call token/dollar figure surfaced
+- Reflections: The Admin UI tech-stack decision (TypeScript + Vite + Vitest, no framework) had to be made here rather than deferred - the plan had deliberately left it open for "live collaboration," but with no separate human turn to make that call, it got decided against concrete criteria (scope size, the course's own reference example, avoiding an unnecessary framework dependency) and written down with its reasoning rather than picked silently. Documenting "no field-level validation exists" was more valuable than it looked going in - it directly shapes what the Admin UI has to guard against on its own before Exercise 5 starts.
+- Verification note: the exercise's own acceptance check for Exercise 3 (new conversation, ask about project goals with no file references, confirm AGENTS.md auto-loads) wasn't run - it needs an actual fresh Claude Code session scoped to `config-service/`, which this continuous session can't simulate faithfully. Flagged for the user to try directly.
