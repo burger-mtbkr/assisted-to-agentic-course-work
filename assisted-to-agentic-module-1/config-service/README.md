@@ -86,10 +86,14 @@ config-service/
 ├── .env.example
 ├── global.json
 ├── openapi.json                     # static export of the live OpenAPI document
+├── package.json                     # task runner - run `npm run` for the full list
+├── AGENTS.md                        # auto-loaded context framework pointer
+├── context/                         # ABOUT.md, ARCHITECTURE.md, IMPLEMENTATION.md
 ├── infra/
 │   └── ConfigApi.Provisioning/     # DynamoDB table provisioning (see infra/README.md)
-└── src/
-    ├── ConfigApi.Service.sln
-    ├── ConfigApi.Service/          # the API (Controllers -> Services -> Repositories)
-    └── ConfigApi.Service.UnitTests/
+├── src/
+│   ├── ConfigApi.Service.sln
+│   ├── ConfigApi.Service/          # the API (Controllers -> Services -> Repositories)
+│   └── ConfigApi.Service.UnitTests/
+└── ui/                              # Admin UI (TypeScript + Vite, no framework)
 ```
