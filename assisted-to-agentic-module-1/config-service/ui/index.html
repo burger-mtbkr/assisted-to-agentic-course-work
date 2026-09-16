@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Config API - Admin</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Config API - Admin</h1>
+    </header>
+    <main>
+      <section id="applications-panel">
+        <h2>Applications</h2>
+        <ul id="applications-list"></ul>
+        <p id="applications-status"></p>
+      </section>
+      <section id="configurations-panel" hidden>
+        <h2 id="configurations-heading">Configuration</h2>
+        <button id="back-button" type="button">&larr; Back to applications</button>
+        <table id="configurations-table">
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Value</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="configurations-body"></tbody>
+        </table>
+        <p id="configurations-status"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
