@@ -1,34 +1,77 @@
 # Implementation
 
-<!--
-Instructions to the assistant: derive every section below from the real
-project files (.csproj, appsettings.json, .env.example, Models/, test
-project) - reference with @path. This is also where the Admin UI's tech
-stack gets decided (Exercise 4/5) - state the decision and why.
--->
-
 ## Technology stack
 
-<!-- TODO: language/runtime versions, key dependencies and why each was
-chosen, project-wide compiler settings -->
+**Service** (`src/ConfigApi.Service`): C#, .NET 10 (`net10.0`), ASP.NET Core
+Web API with MVC controllers (not Minimal APIs). `Nullable` and
+`ImplicitUsings` enabled, `TreatWarningsAsErrors` on. Dependencies (do not
+add more without a reason - this list is deliberately short):
+
+- `AWSSDK.DynamoDBv2` 4.0.103.5 - DynamoDB data access
+- `DotNetEnv` 3.2.0 - loads `.env` into process environment at startup
+- `Microsoft.AspNetCore.OpenApi` 10.0.11 + `Scalar.AspNetCore` 2.17.2 - live
+  OpenAPI document and API explorer UI
+- `Serilog.AspNetCore` 10.0.0 - structured request logging
+
+**Tests** (`src/ConfigApi.Service.UnitTests`): xunit + Moq, `coverlet` for
+coverage.
 
 ## Configuration and credentials
 
-<!-- TODO: .env handling, appsettings.json, table names -->
+AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_REGION`) come from a git-ignored `.env` at the `config-service` root,
+loaded via `DotNetEnv.Env.Load()` as the very first line of `Program.cs`,
+then picked up by the AWS SDK's standard credential chain. `.env.example`
+is committed with empty values for onboarding. Non-secret config
+(DynamoDB table names, scan cache TTL) lives in `appsettings.json` under a
+`DynamoDB` section, bound to `DynamoDbSettings`.
 
 ## Validation
 
-<!-- TODO: what's actually enforced today vs. not -->
+There is currently no field-level validation on `Application` or
+`Configuration` (no `[Required]`, length limits, or key-format
+constraints) - any string, including empty, is accepted for `name`,
+`value`, etc. The only enforced business rules are uniqueness
+(`Application.Name`, `Configuration.ConfigKey` within an application) and
+existence checks (404 on operations against a missing parent/entity). Keep
+this in mind when building the Admin UI: the API won't reject malformed
+input, so basic UX-level guards (e.g. not submitting an empty key) belong
+in the UI itself.
 
 ## Testing
 
-<!-- TODO: framework, layout, coverage tooling and its exclusions -->
+Tests are colocated in a sibling `*.UnitTests` project, mirroring the
+source tree one-to-one (`Controllers/`, `Services/`, `Repositories/`,
+`Middleware/`, `Ignition/`). Repositories mock the DynamoDB collection
+interfaces; services mock repositories; controllers mock services -
+nothing in the unit suite touches a real AWS client. Coverage via
+`coverlet`, using `src/ConfigApi.Service.UnitTests/coverlet.runsettings`,
+which excludes `Infrastructure/DynamoDb` and `Ignition/DynamoDbIgnition`
+(the parts that construct a real `TableBuilder`) - those are only verified
+by running the service against real DynamoDB. This is a deliberate gap,
+not an oversight: it's exactly the boundary that hid the `TableBuilder`
+bug during Module 1, so treat "tests pass" as necessary but not
+sufficient - a live run against the real API (see `config-service/README.md`)
+is still the final check after any change to that layer.
 
 ## Admin UI stack (this module)
 
-<!-- TODO: the tech choice for ui/, and why -->
+**TypeScript + Vite + Vitest, no UI framework**, calling the API directly
+with `fetch`. Chosen because: the UI's scope is three small views (list
+apps, view one app's config entries, edit a value) - a framework like
+React would add a dependency and a build-concept for no real benefit at
+this size; Vite/Vitest gives a fast dev server and a real test setup
+without hand-rolling either; and it mirrors the course's own reference
+implementation's approach (see
+`assisted-to-agentic-module-2/examples/config-service/ui/`), which the
+Module 2 instructions hold up as the shape of a "resist scope creep" admin
+tool. `ui/` sits as a sibling to `src/`, with its own `package.json` (see
+`config-service/package.json` for the cross-project task runner that
+drives both `svc` and `ui`).
 
 ## Development workflow
 
-<!-- TODO: how this project actually gets committed to, observed from git
-log - not an invented convention -->
+Plan-then-act per change, one commit per meaningful step, plain descriptive
+commit messages (`"Module N: <what changed>"`, not a conventional-commits
+format) - observed directly from `git log`, not an invented policy. No
+CI/CD configured yet.
