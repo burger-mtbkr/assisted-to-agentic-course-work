@@ -63,6 +63,18 @@ REST CRUD under `/api/v1`:
 - `/api/v1/applications/{applicationId}/configurations` - `GET`, `GET /{configKey}`,
   `POST`, `PUT /{configKey}`, `DELETE /{configKey}`
 
+## 4. Run the Admin UI
+
+With the API running (step 3), in a separate terminal:
+
+```
+npm install --prefix ui
+npm run dev --prefix ui
+```
+
+Opens on `http://localhost:5173`. The API's CORS policy only allows that
+origin in `Development` - see `context/ARCHITECTURE.md`.
+
 ## Tests and coverage
 
 From the repo root:
@@ -78,6 +90,10 @@ since those touch the real AWS SDK client):
 ```
 dotnet test src/ConfigApi.Service.sln --settings src/ConfigApi.Service.UnitTests/coverlet.runsettings --collect:"XPlat Code Coverage"
 ```
+
+On Windows, stop any running `dotnet run`/`npm run run:api` instance first -
+`dotnet test`'s rebuild step can't overwrite a `.exe` that's still locked by
+a running process, and fails with an `MSB3027` copy error if one is.
 
 ## Project layout
 
