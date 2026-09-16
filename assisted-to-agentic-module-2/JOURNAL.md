@@ -11,3 +11,15 @@
 - Output: filled `assisted-to-agentic-module-1/config-service/context/ABOUT.md` (Name, Description, Justification, Personas, Domain context, Scope)
 - Cost: subscription-based Claude Code session; no per-call token/dollar figure surfaced
 - Reflections: Running the live smoke test first (rather than writing from the spec alone) made the Domain Context and Scope sections meaningfully more confident - the delete-with-children 409 and the "no auth" gap are both things confirmed against real behavior, not assumed from the spec. Staying in one continuous session (vs. the instructions' "new conversation, clean context" pattern) traded away the exercise's intended test of context re-discovery, but avoided re-deriving facts already gathered this session - worth doing a genuinely fresh-context pass for at least one later exercise (e.g. Exercise 4) to actually experience what the module is testing.
+
+## Exercise 2: context/ARCHITECTURE.md ("what's on top")
+
+- Prompt: self-directed - picked ARCHITECTURE.md as the "what's on top" doc over IMPLEMENTATION.md, since the composite-key DynamoDB collection design was the most non-obvious, undocumented thing in the codebase (previously explained only in a superseded planning artifact).
+- Tool: Claude Code
+- Mode: Act mode
+- Context: Continued (same session)
+- Model: claude-sonnet-5
+- Input: hand-written ARCHITECTURE.md skeleton + direct reads of the real source (`Infrastructure/DynamoDb/*.cs`, both controllers, `ApplicationService.cs`, `ErrorMiddleware.cs`, `DynamoDbIgnition.cs`, `Program.cs`) rather than relying on the earlier exploration summary from memory.
+- Output: filled `context/ARCHITECTURE.md` (Layers, Data access, Error handling, API surface, Key technical decisions)
+- Cost: subscription-based Claude Code session; no per-call token/dollar figure surfaced
+- Reflections: Reading the actual controller/service code (rather than trusting the prior research summary) surfaced two real, previously-undocumented facts: the delete-with-children 409 path returns a different JSON error shape than every other error (bypasses `ErrorMiddleware`, hits ASP.NET's default `ProblemDetails` instead), and there's no CORS middleware yet - which Exercise 5 will need. Neither was wrong information before, just missing - this is exactly the kind of gap a context document is supposed to catch before it causes friction later (the CORS gap in particular would otherwise have been discovered mid-way through building the Admin UI).
