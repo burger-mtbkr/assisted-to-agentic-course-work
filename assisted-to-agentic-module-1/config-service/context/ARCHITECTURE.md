@@ -37,8 +37,8 @@ Both wrap AWS SDK's `TableBuilder`, which requires the key schema declared
 explicitly via `.AddHashKey(...)` (and `.AddRangeKey(...)` for the composite
 variant) before `.Build()` - it does not infer schema from the table. This
 was the source of a real outage during Module 1 (see
-`context/IMPLEMENTATION.md` once written): unit tests mock these interfaces,
-so a missing `AddHashKey` call passed all 55 tests but threw
+`context/IMPLEMENTATION.md`'s Testing section): unit tests mock these
+interfaces, so a missing `AddHashKey` call passed all 55 tests but threw
 `ArgumentOutOfRangeException` on the very first live request.
 
 ## Error handling
@@ -80,7 +80,27 @@ REST CRUD under `/api/v1` for `applications` and nested
   `appsettings.json`'s `DynamoDB` section) and invalidated on every write.
   Fine at current scale; would need a GSI/query-based approach if
   `configurations` grows large per application.
-- **No CORS middleware yet** - `Program.cs` has no `AddCors`/`UseCors` call.
-  Needs adding before the Admin UI (`ui/`, this module) can call the API
-  from a browser running on a different origin.
+- **CORS** - `Ignition/CorsIgnition.cs` registers a `LocalDev` policy scoped
+  to `http://localhost:5173` (the Admin UI's Vite dev server), applied via
+  `app.UseCors(...)` only when `IsDevelopment()` - same gating as
+  Scalar/OpenAPI. No CORS policy exists outside Development.
 - **No authentication/authorization** - see `context/ABOUT.md` Scope.
+
+## UI
+
+`ui/` (sibling to `src/`) - TypeScript + Vite, no framework; see
+`context/IMPLEMENTATION.md` for why. Two files carry all the logic:
+
+- `src/api.ts` - a thin `fetch` wrapper (`listApplications`,
+  `listConfigurations`, `updateConfiguration`) that talks to the API at
+  `VITE_API_BASE_URL` (defaults to `http://localhost:5038`) and normalizes
+  both error-response shapes documented above into a single `Error` with a
+  human-readable message.
+- `src/main.ts` - direct DOM rendering, no virtual DOM/templating: an
+  applications list panel and a configurations panel, toggled via
+  `hidden`. No client-side router - this is a two-screen tool, not an SPA
+  that needs one.
+
+Data flow: `main.ts` calls `api.ts`, which calls the real API directly from
+the browser (no server-side proxy) - this is what the CORS policy above
+exists for.

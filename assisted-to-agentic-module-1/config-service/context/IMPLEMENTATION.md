@@ -69,6 +69,22 @@ tool. `ui/` sits as a sibling to `src/`, with its own `package.json` (see
 `config-service/package.json` for the cross-project task runner that
 drives both `svc` and `ui`).
 
+API base URL is `VITE_API_BASE_URL` (Vite env var), defaulting to
+`http://localhost:5038` - the service's dev port - when unset. `npm test`
+runs only the mocked unit suite (`src/api.test.ts`); `npm run test:integration`
+runs `src/integration/api.test.ts`, which exercises the same `api.ts`
+functions against the real running service (create/list/update/read-back,
+cleaning up after itself) - this is deliberately not part of the default
+`npm test` run since it needs the service up. Run it after any change to
+`api.ts` or to the service's request/response contract, same principle as
+the "tests pass isn't enough" note above.
+
+`tsconfig.json` sets `noEmit: true` - `tsc -b` in the `build` script is
+type-checking only; Vite does the actual bundling. Omitting `noEmit` makes
+`tsc` emit `.js` files alongside the `.ts` sources in `src/`, which Vitest
+then picks up as duplicate test files - hit this once during Module 2 and
+fixed it.
+
 ## Development workflow
 
 Plan-then-act per change, one commit per meaningful step, plain descriptive
