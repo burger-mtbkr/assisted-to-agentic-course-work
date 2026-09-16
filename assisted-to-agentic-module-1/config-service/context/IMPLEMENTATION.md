@@ -67,7 +67,14 @@ implementation's approach (see
 Module 2 instructions hold up as the shape of a "resist scope creep" admin
 tool. `ui/` sits as a sibling to `src/`, with its own `package.json` (see
 `config-service/package.json` for the cross-project task runner that
-drives both `svc` and `ui`).
+drives both `src/` and `ui/`).
+
+`ui/`'s dependencies (`vite`, `vitest`, `typescript`) are dev-only - none
+ship in the production bundle - but run `npm audit --prefix ui` after any
+`npm install`/version bump there regardless. This isn't a hypothetical:
+the first `npm install` during this module pulled in known CVEs
+transitively through vite/esbuild/vitest, caught by `npm audit` and fixed
+with `npm audit fix --force` before the UI was considered done.
 
 API base URL is `VITE_API_BASE_URL` (Vite env var), defaulting to
 `http://localhost:5038` - the service's dev port - when unset. `npm test`
