@@ -105,14 +105,18 @@ rather than duplicating the endpoint list here.
 `context/IMPLEMENTATION.md` for why. Two files carry all the logic:
 
 - `src/api.ts` - a thin `fetch` wrapper (`listApplications`,
-  `listConfigurations`, `updateConfiguration`) that talks to the API at
-  `VITE_API_BASE_URL` (defaults to `http://localhost:5038`) and normalizes
-  both error-response shapes documented above into a single `Error` with a
-  human-readable message.
+  `listConfigurations`, `updateConfiguration`, and, since Module 3,
+  `listFlags`/`updateFlag`) that talks to the API at `VITE_API_BASE_URL`
+  (defaults to `http://localhost:5038`) and normalizes both error-response
+  shapes documented above into a single `Error` with a human-readable
+  message.
 - `src/main.ts` - direct DOM rendering, no virtual DOM/templating: an
   applications list panel and a configurations panel, toggled via
   `hidden`. No client-side router - this is a two-screen tool, not an SPA
-  that needs one.
+  that needs one. The configurations panel also renders a "Feature Flags"
+  table (list + toggle-and-save, same interaction pattern as the
+  configuration entries above it) - flags don't get a third screen, they
+  live alongside the configuration entries for the same application.
 
 Data flow: `main.ts` calls `api.ts`, which calls the real API directly from
 the browser (no server-side proxy) - this is what the CORS policy above

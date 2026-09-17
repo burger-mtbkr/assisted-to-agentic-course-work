@@ -15,6 +15,14 @@ export interface Configuration {
   createdDate: string;
 }
 
+export interface Flag {
+  applicationId: string;
+  flagKey: string;
+  enabled: boolean;
+  description: string | null;
+  createdDate: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -56,6 +64,24 @@ export function updateConfiguration(
     {
       method: "PUT",
       body: JSON.stringify({ configKey, value }),
+    },
+  );
+}
+
+export function listFlags(applicationId: string): Promise<Flag[]> {
+  return request<Flag[]>(`/api/v1/applications/${applicationId}/flags`);
+}
+
+export function updateFlag(
+  applicationId: string,
+  flagKey: string,
+  enabled: boolean,
+): Promise<Flag> {
+  return request<Flag>(
+    `/api/v1/applications/${applicationId}/flags/${flagKey}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ flagKey, enabled }),
     },
   );
 }

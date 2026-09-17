@@ -58,7 +58,13 @@ td input[type="text"] {
 }
 
 #applications-status,
-#configurations-status {
+#configurations-status,
+#flags-status {
   color: #555;
   min-height: 1.2em;
+}
+
+td input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
 }

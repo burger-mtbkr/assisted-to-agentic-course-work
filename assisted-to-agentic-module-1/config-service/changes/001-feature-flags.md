@@ -45,7 +45,7 @@ shows up.
 - **When**: An administrator opens the Admin UI for an application
 - **Then**: They can view and toggle feature flags for that application
   alongside its existing configuration entries
-- **Status**: Not Started
+- **Status**: Complete
 
 #### Task 4: Client Consumption Pattern
 
@@ -67,18 +67,15 @@ shows up.
 
 ## Current Task Focus
 
-- **Active task**: Task 3 - UI Feature Flag Administration
+- **Active task**: Task 4 - Client Consumption Pattern
 - **Stage**: PLAN - Not Started
 - **Last updated**: 2026-09-17
 
-*Tasks 1-2 committed and purged - see commit history for detail. Task 2
-deviated from the Notes' original assumption of a symmetric
-`Exceptions/Flags` folder mirroring `Configurations`: only
-`DuplicateFlagKeyException` was added there. `ApplicationNotFoundException`
-and `ValidationException` are reused as-is, and no `FlagNotFoundException`
-was added since the equivalent `ConfigurationNotFoundException` is dead
-code in this codebase (defined, caught by `ErrorMiddleware`, never thrown -
-"not found" goes through the `null`/`false`-return-to-`NotFound()` path
-instead). Verified against the real API and DynamoDB `flags` table
-(create/get/list/update/duplicate-409/invalid-400/missing-parent-404/
-delete/re-delete-404), not just the mocked unit suite.*
+*Tasks 1-3 committed and purged - see commit history for detail. UI adds a
+"Feature Flags" table to the existing configuration detail screen (not a
+new screen), list + toggle-and-save only - no create/delete from the UI,
+matching the existing configurations UI's own minimal surface. Verified
+with a real headless-Chrome run against the live dev server (Playwright,
+ad hoc - not added as a project dependency): toggled a flag, confirmed the
+checkbox state and "Saved" message, screenshots inspected. No console
+errors reproduced on a clean run.*

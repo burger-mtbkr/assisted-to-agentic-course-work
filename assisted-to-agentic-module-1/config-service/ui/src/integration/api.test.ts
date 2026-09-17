@@ -7,6 +7,8 @@ import {
   listApplications,
   listConfigurations,
   updateConfiguration,
+  listFlags,
+  updateFlag,
 } from "../api";
 
 const BASE_URL = "http://localhost:5038";
@@ -34,11 +36,23 @@ beforeAll(async () => {
       body: JSON.stringify({ configKey: "greeting", value: "hello" }),
     },
   );
+
+  await fetch(`${BASE_URL}/api/v1/applications/${applicationId}/flags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ flagKey: "new-checkout", enabled: false }),
+  });
 });
 
 afterAll(async () => {
   await fetch(
     `${BASE_URL}/api/v1/applications/${applicationId}/configurations/greeting`,
+    {
+      method: "DELETE",
+    },
+  );
+  await fetch(
+    `${BASE_URL}/api/v1/applications/${applicationId}/flags/new-checkout`,
     {
       method: "DELETE",
     },
@@ -69,6 +83,22 @@ describe("api against the live service", () => {
     const configurations = await listConfigurations(applicationId);
     expect(configurations).toEqual([
       expect.objectContaining({ configKey: "greeting", value: "hello world" }),
+    ]);
+  });
+
+  it("lists the created flag", async () => {
+    const flags = await listFlags(applicationId);
+    expect(flags).toEqual([
+      expect.objectContaining({ flagKey: "new-checkout", enabled: false }),
+    ]);
+  });
+
+  it("toggles a flag and the change is visible on the next read", async () => {
+    await updateFlag(applicationId, "new-checkout", true);
+
+    const flags = await listFlags(applicationId);
+    expect(flags).toEqual([
+      expect.objectContaining({ flagKey: "new-checkout", enabled: true }),
     ]);
   });
 });

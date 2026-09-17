@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { listApplications, updateConfiguration } from "./api";
+import { listApplications, updateConfiguration, updateFlag } from "./api";
 
 function mockFetchOnce(status: number, body: unknown) {
   vi.stubGlobal(
@@ -62,6 +62,42 @@ describe("updateConfiguration", () => {
     });
 
     await expect(updateConfiguration("1", "missing", "x")).rejects.toThrow(
+      "404 not found",
+    );
+  });
+});
+
+describe("updateFlag", () => {
+  it("sends a PUT with flagKey and enabled, and returns the updated flag", async () => {
+    const updated = {
+      applicationId: "1",
+      flagKey: "new-checkout",
+      enabled: true,
+      description: null,
+      createdDate: "now",
+    };
+    mockFetchOnce(200, updated);
+
+    const result = await updateFlag("1", "new-checkout", true);
+
+    expect(result).toEqual(updated);
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:5038/api/v1/applications/1/flags/new-checkout",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ flagKey: "new-checkout", enabled: true }),
+      }),
+    );
+  });
+
+  it("throws with the server's detail message on failure", async () => {
+    mockFetchOnce(404, {
+      status: 404,
+      title: "Not Found",
+      detail: "not found",
+    });
+
+    await expect(updateFlag("1", "missing", false)).rejects.toThrow(
       "404 not found",
     );
   });

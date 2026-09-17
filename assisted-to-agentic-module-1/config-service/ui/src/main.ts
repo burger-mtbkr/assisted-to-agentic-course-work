@@ -3,6 +3,8 @@ import {
   listApplications,
   listConfigurations,
   updateConfiguration,
+  listFlags,
+  updateFlag,
   type Application,
 } from "./api";
 
@@ -27,6 +29,9 @@ const configurationsBody = document.querySelector<HTMLTableSectionElement>(
 const configurationsStatus = document.querySelector<HTMLElement>(
   "#configurations-status",
 )!;
+const flagsBody =
+  document.querySelector<HTMLTableSectionElement>("#flags-body")!;
+const flagsStatus = document.querySelector<HTMLElement>("#flags-status")!;
 const backButton = document.querySelector<HTMLButtonElement>("#back-button")!;
 
 async function renderApplications(): Promise<void> {
@@ -62,6 +67,7 @@ async function showConfigurations(application: Application): Promise<void> {
   configurationsHeading.textContent = `Configuration - ${application.name}`;
   configurationsStatus.textContent = "Loading configuration entries...";
   configurationsBody.innerHTML = "";
+  renderFlags(application);
 
   try {
     const configurations = await listConfigurations(application.id);
@@ -106,6 +112,55 @@ async function showConfigurations(application: Application): Promise<void> {
     }
   } catch (error) {
     configurationsStatus.textContent = `Failed to load configuration: ${(error as Error).message}`;
+  }
+}
+
+async function renderFlags(application: Application): Promise<void> {
+  flagsStatus.textContent = "Loading feature flags...";
+  flagsBody.innerHTML = "";
+
+  try {
+    const flags = await listFlags(application.id);
+    flagsStatus.textContent = flags.length === 0 ? "No feature flags yet." : "";
+
+    for (const flag of flags) {
+      const row = document.createElement("tr");
+
+      const keyCell = document.createElement("td");
+      keyCell.textContent = flag.flagKey;
+
+      const enabledCell = document.createElement("td");
+      const enabledCheckbox = document.createElement("input");
+      enabledCheckbox.type = "checkbox";
+      enabledCheckbox.checked = flag.enabled;
+      enabledCell.appendChild(enabledCheckbox);
+
+      const actionCell = document.createElement("td");
+      const saveButton = document.createElement("button");
+      saveButton.type = "button";
+      saveButton.textContent = "Save";
+      saveButton.addEventListener("click", async () => {
+        saveButton.disabled = true;
+        try {
+          await updateFlag(
+            application.id,
+            flag.flagKey,
+            enabledCheckbox.checked,
+          );
+          flagsStatus.textContent = `Saved "${flag.flagKey}".`;
+        } catch (error) {
+          flagsStatus.textContent = `Failed to save: ${(error as Error).message}`;
+        } finally {
+          saveButton.disabled = false;
+        }
+      });
+      actionCell.appendChild(saveButton);
+
+      row.append(keyCell, enabledCell, actionCell);
+      flagsBody.appendChild(row);
+    }
+  } catch (error) {
+    flagsStatus.textContent = `Failed to load feature flags: ${(error as Error).message}`;
   }
 }
 
