@@ -38,8 +38,9 @@
   flagged (all line-wrap only, `printWidth: 80`); scaffolded this module's
   `prompts/` and `JOURNAL.md`. Verified with `npm run check` (test + lint +
   format:check + type-check, all green) and a clean `npm audit --prefix ui`.
-- **Cost**: Not separately metered in this environment (subscription-based
-  Claude Code session, no per-call token/dollar figure surfaced).
+- **Cost**: 11% of the account's 5-hour Claude usage limit (subscription
+  session; no per-call dollar figure surfaced, this is the rolling-window
+  usage metric Claude Code reports).
 - **Reflections**: The module's own worked example didn't match the
   project's actual stack at almost any level - Make vs npm scripts, Python
   vs .NET/TypeScript, no linter vs needing one added from scratch - so
