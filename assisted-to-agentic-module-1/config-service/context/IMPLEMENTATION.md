@@ -69,12 +69,22 @@ tool. `ui/` sits as a sibling to `src/`, with its own `package.json` (see
 `config-service/package.json` for the cross-project task runner that
 drives both `src/` and `ui/`).
 
-`ui/`'s dependencies (`vite`, `vitest`, `typescript`) are dev-only - none
-ship in the production bundle - but run `npm audit --prefix ui` after any
-`npm install`/version bump there regardless. This isn't a hypothetical:
-the first `npm install` during this module pulled in known CVEs
-transitively through vite/esbuild/vitest, caught by `npm audit` and fixed
-with `npm audit fix --force` before the UI was considered done.
+`ui/`'s dependencies (`vite`, `vitest`, `typescript`, and - added in Module 3
+- `eslint`, `@eslint/js`, `typescript-eslint`, `eslint-config-prettier`,
+`prettier`) are dev-only - none ship in the production bundle - but run
+`npm audit --prefix ui` after any `npm install`/version bump there
+regardless. This isn't a hypothetical: the first `npm install` during
+Module 2 pulled in known CVEs transitively through vite/esbuild/vitest,
+caught by `npm audit` and fixed with `npm audit fix --force` before the UI
+was considered done.
+
+Module 3 added `ui/eslint.config.js` (flat config: `@eslint/js` recommended
++ `typescript-eslint` recommended + `eslint-config-prettier` to disable
+stylistic rules that would fight Prettier) and `ui/.prettierrc.json`
+(explicit values pinned to Prettier's own defaults, so a future Prettier
+version bump can't silently reformat everything). See
+`context/ENV_SCRIPTS.md` for the `lint`/`format`/`format:check` scripts
+these back.
 
 API base URL is `VITE_API_BASE_URL` (Vite env var), defaulting to
 `http://localhost:5038` - the service's dev port - when unset. `npm test`

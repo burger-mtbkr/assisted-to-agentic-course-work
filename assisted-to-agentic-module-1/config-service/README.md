@@ -95,6 +95,17 @@ On Windows, stop any running `dotnet run`/`npm run run:api` instance first -
 `dotnet test`'s rebuild step can't overwrite a `.exe` that's still locked by
 a running process, and fails with an `MSB3027` copy error if one is.
 
+## Quality gates
+
+```
+npm run check    # test + lint + format:check + type-check (api and ui)
+```
+
+Runs the API's build (warnings-as-errors) and `dotnet format`, the UI's
+ESLint and Prettier, and the UI's TypeScript checking. See
+`context/ENV_SCRIPTS.md` for the individual `lint`/`format`/`type-check`
+scripts and what each one covers.
+
 ## Project layout
 
 ```
@@ -104,7 +115,10 @@ config-service/
 ├── openapi.json                     # static export of the live OpenAPI document
 ├── package.json                     # task runner - run `npm run` for the full list
 ├── AGENTS.md                        # auto-loaded context framework pointer
-├── context/                         # ABOUT.md, ARCHITECTURE.md, IMPLEMENTATION.md
+├── context/                         # ABOUT.md, ARCHITECTURE.md, IMPLEMENTATION.md,
+│                                     # ENV_SCRIPTS.md, WORKFLOW_STATUS.md
+├── changes/                         # work items (template.md + NNN-name.md), see
+│                                     # context/WORKFLOW_STATUS.md
 ├── infra/
 │   └── ConfigApi.Provisioning/     # DynamoDB table provisioning (see infra/README.md)
 ├── src/

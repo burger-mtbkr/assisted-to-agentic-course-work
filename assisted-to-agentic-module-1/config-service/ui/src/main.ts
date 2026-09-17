@@ -6,14 +6,27 @@ import {
   type Application,
 } from "./api";
 
-const applicationsPanel = document.querySelector<HTMLElement>("#applications-panel")!;
-const applicationsList = document.querySelector<HTMLUListElement>("#applications-list")!;
-const applicationsStatus = document.querySelector<HTMLElement>("#applications-status")!;
+const applicationsPanel = document.querySelector<HTMLElement>(
+  "#applications-panel",
+)!;
+const applicationsList =
+  document.querySelector<HTMLUListElement>("#applications-list")!;
+const applicationsStatus = document.querySelector<HTMLElement>(
+  "#applications-status",
+)!;
 
-const configurationsPanel = document.querySelector<HTMLElement>("#configurations-panel")!;
-const configurationsHeading = document.querySelector<HTMLElement>("#configurations-heading")!;
-const configurationsBody = document.querySelector<HTMLTableSectionElement>("#configurations-body")!;
-const configurationsStatus = document.querySelector<HTMLElement>("#configurations-status")!;
+const configurationsPanel = document.querySelector<HTMLElement>(
+  "#configurations-panel",
+)!;
+const configurationsHeading = document.querySelector<HTMLElement>(
+  "#configurations-heading",
+)!;
+const configurationsBody = document.querySelector<HTMLTableSectionElement>(
+  "#configurations-body",
+)!;
+const configurationsStatus = document.querySelector<HTMLElement>(
+  "#configurations-status",
+)!;
 const backButton = document.querySelector<HTMLButtonElement>("#back-button")!;
 
 async function renderApplications(): Promise<void> {
@@ -22,7 +35,8 @@ async function renderApplications(): Promise<void> {
 
   try {
     const applications = await listApplications();
-    applicationsStatus.textContent = applications.length === 0 ? "No applications yet." : "";
+    applicationsStatus.textContent =
+      applications.length === 0 ? "No applications yet." : "";
 
     for (const application of applications) {
       applicationsList.appendChild(renderApplicationItem(application));
@@ -73,7 +87,11 @@ async function showConfigurations(application: Application): Promise<void> {
       saveButton.addEventListener("click", async () => {
         saveButton.disabled = true;
         try {
-          await updateConfiguration(application.id, configuration.configKey, valueInput.value);
+          await updateConfiguration(
+            application.id,
+            configuration.configKey,
+            valueInput.value,
+          );
           configurationsStatus.textContent = `Saved "${configuration.configKey}".`;
         } catch (error) {
           configurationsStatus.textContent = `Failed to save: ${(error as Error).message}`;

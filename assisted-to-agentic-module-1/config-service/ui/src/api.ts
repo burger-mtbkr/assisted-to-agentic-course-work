@@ -38,8 +38,12 @@ export function listApplications(): Promise<Application[]> {
   return request<Application[]>("/api/v1/applications");
 }
 
-export function listConfigurations(applicationId: string): Promise<Configuration[]> {
-  return request<Configuration[]>(`/api/v1/applications/${applicationId}/configurations`);
+export function listConfigurations(
+  applicationId: string,
+): Promise<Configuration[]> {
+  return request<Configuration[]>(
+    `/api/v1/applications/${applicationId}/configurations`,
+  );
 }
 
 export function updateConfiguration(

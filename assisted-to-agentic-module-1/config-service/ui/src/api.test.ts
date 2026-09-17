@@ -19,7 +19,9 @@ beforeEach(() => {
 
 describe("listApplications", () => {
   it("returns the parsed application list on success", async () => {
-    mockFetchOnce(200, [{ id: "1", name: "app-a", description: null, createdDate: "now" }]);
+    mockFetchOnce(200, [
+      { id: "1", name: "app-a", description: null, createdDate: "now" },
+    ]);
 
     const applications = await listApplications();
 
@@ -53,8 +55,14 @@ describe("updateConfiguration", () => {
   });
 
   it("throws with the server's detail message on failure", async () => {
-    mockFetchOnce(404, { status: 404, title: "Not Found", detail: "not found" });
+    mockFetchOnce(404, {
+      status: 404,
+      title: "Not Found",
+      detail: "not found",
+    });
 
-    await expect(updateConfiguration("1", "missing", "x")).rejects.toThrow("404 not found");
+    await expect(updateConfiguration("1", "missing", "x")).rejects.toThrow(
+      "404 not found",
+    );
   });
 });
