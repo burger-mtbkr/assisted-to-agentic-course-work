@@ -8,16 +8,18 @@ Controller -> Service -> Repository, wired up in `Program.cs` via
 order):
 
 - **Controllers** (`Controllers/Applications`, `Controllers/Configurations`,
-  `Controllers/Health`) - MVC controllers, HTTP concerns only (routing,
-  status codes). Translate service results (`null` = not found, `bool` /
-  `bool?` for conditional outcomes) into `IActionResult`.
+  `Controllers/Flags`, `Controllers/Health`) - MVC controllers, HTTP concerns
+  only (routing, status codes). Translate service results (`null` = not
+  found, `bool` / `bool?` for conditional outcomes) into `IActionResult`.
 - **Services** (`Services/Applications/ApplicationService`,
-  `Services/Configurations/ConfigurationService`) - business rules: name
-  uniqueness, id/timestamp generation, the delete-with-children guard.
-  Throw domain exceptions for the caller-facing failure cases.
+  `Services/Configurations/ConfigurationService`,
+  `Services/Flags/FlagService`) - business rules: name/key uniqueness,
+  id/timestamp generation, the delete-with-children guard. Throw domain
+  exceptions for the caller-facing failure cases.
 - **Repositories** (`Repositories/Applications/ApplicationRepository`,
-  `Repositories/Configurations/ConfigurationRepository`) - thin wrappers
-  around the DynamoDB collection abstractions (below); no business logic.
+  `Repositories/Configurations/ConfigurationRepository`,
+  `Repositories/Flags/FlagRepository`) - thin wrappers around the DynamoDB
+  collection abstractions (below); no business logic.
 
 ## Data access
 
@@ -31,7 +33,9 @@ a TTL-cached, invalidate-on-write scan (`DynamoDbTableCache`):
   - partition key + sort key. Added because `income-service`'s original
   collection type is hard-wired to a single `"id"` key and can't express
   `configurations`' `(applicationId, configKey)` schema. Used for
-  `configurations` (partition `applicationId`, sort `configKey`).
+  `configurations` (partition `applicationId`, sort `configKey`) and, since
+  Module 3, `flags` (partition `applicationId`, sort `flagKey`) - the same
+  shape, registered the same way in `Ignition/DynamoDbIgnition.cs`.
 
 Both wrap AWS SDK's `TableBuilder`, which requires the key schema declared
 explicitly via `.AddHashKey(...)` (and `.AddRangeKey(...)` for the composite
@@ -48,10 +52,16 @@ conceptually similar errors - worth knowing when integrating a client:
 
 - **Thrown domain exceptions** (`ApplicationNotFoundException`,
   `ConfigurationNotFoundException`, `DuplicateApplicationNameException`,
-  `DuplicateConfigurationKeyException`, `ValidationException`) are caught
-  centrally by `Middleware/ErrorMiddleware`, mapped to 404/404/409/409/400,
-  and serialized as `{ status, title, detail, error, exceptionType,
-  traceId }`.
+  `DuplicateConfigurationKeyException`, `DuplicateFlagKeyException`,
+  `ValidationException`) are caught centrally by
+  `Middleware/ErrorMiddleware`, mapped to 404/404/409/409/409/400, and
+  serialized as `{ status, title, detail, error, exceptionType, traceId }`.
+  `FlagsController` reuses `ApplicationNotFoundException` and
+  `ValidationException` (flag key format) rather than adding new exception
+  types for cases that map identically to the existing ones - there's no
+  `FlagNotFoundException`, matching that "not found" for `GetByKey`/`Update`/
+  `Delete` is handled as a `null`/`false` return translated to `NotFound()`
+  in the controller, same as `configurations`.
 - **`ApplicationsController.Delete`** returns a tri-state result from
   `ApplicationService.DeleteAsync` (`bool?`: `null` = not found, `false` =
   conflict because the application still has configuration entries, `true`
@@ -65,10 +75,11 @@ Unhandled exceptions fall through to a generic 500 in `ErrorMiddleware`.
 ## API surface
 
 REST CRUD under `/api/v1` for `applications` and nested
-`applications/{applicationId}/configurations`, plus a dependency-free
-`GET /health`. Full contract: the committed `openapi.json`, the live
-`/openapi/v1.json`, or the Scalar UI at `/scalar` (dev only) - see
-`config-service/README.md` rather than duplicating the endpoint list here.
+`applications/{applicationId}/configurations` and (Module 3)
+`applications/{applicationId}/flags`, plus a dependency-free `GET /health`.
+Full contract: the committed `openapi.json`, the live `/openapi/v1.json`,
+or the Scalar UI at `/scalar` (dev only) - see `config-service/README.md`
+rather than duplicating the endpoint list here.
 
 ## Key technical decisions
 

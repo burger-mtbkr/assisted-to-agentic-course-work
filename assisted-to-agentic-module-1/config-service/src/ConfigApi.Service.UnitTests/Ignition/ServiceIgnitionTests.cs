@@ -28,4 +28,16 @@ public class ServiceIgnitionTests
         Assert.Equal(typeof(ConfigurationService), descriptor.ImplementationType);
         Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
     }
+
+    [Fact]
+    public void ConfigureServices_RegistersFlagService_AsScoped()
+    {
+        var services = new ServiceCollection();
+
+        services.ConfigureServices();
+
+        var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IFlagService));
+        Assert.Equal(typeof(FlagService), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
 }

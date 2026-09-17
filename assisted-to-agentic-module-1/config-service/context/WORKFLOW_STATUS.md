@@ -106,7 +106,7 @@ move to BUILD & ASSESS"). This applies even when the work looks finished -
 ## Current Status
 
 - **Work item**: [changes/001-feature-flags.md](../changes/001-feature-flags.md)
-- **Current task**: Task 2 - Backend Feature Flag Management
+- **Current task**: Task 3 - UI Feature Flag Administration
 - **Current stage**: PLAN - Not Started
 - **Last updated**: 2026-09-17
 

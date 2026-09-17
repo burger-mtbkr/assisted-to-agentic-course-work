@@ -1,5 +1,6 @@
 using ConfigApi.Service.Services.Applications;
 using ConfigApi.Service.Services.Configurations;
+using ConfigApi.Service.Services.Flags;
 
 namespace ConfigApi.Service.Ignition;
 
@@ -9,5 +10,6 @@ public static class ServicesIgnition
     {
         services.AddScoped<IApplicationService, ApplicationService>();
         services.AddScoped<IConfigurationService, ConfigurationService>();
+        services.AddScoped<IFlagService, FlagService>();
     }
 }

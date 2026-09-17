@@ -28,15 +28,19 @@ is committed with empty values for onboarding. Non-secret config
 
 ## Validation
 
-There is currently no field-level validation on `Application` or
-`Configuration` (no `[Required]`, length limits, or key-format
-constraints) - any string, including empty, is accepted for `name`,
-`value`, etc. The only enforced business rules are uniqueness
-(`Application.Name`, `Configuration.ConfigKey` within an application) and
-existence checks (404 on operations against a missing parent/entity). Keep
-this in mind when building the Admin UI: the API won't reject malformed
-input, so basic UX-level guards (e.g. not submitting an empty key) belong
-in the UI itself.
+There is no `[Required]` or length-limit validation on `Application`,
+`Configuration`, or `Flag` - any string, including empty, is accepted for
+`name`, `value`, `description`, etc. `Configuration.ConfigKey` and (Module
+3) `Flag.FlagKey` are the one exception: both are validated to contain only
+letters, digits, `.`, `_`, or `-` (`ConfigurationService.IsValidConfigKey`
+/ `FlagService.IsValidFlagKey`), rejected with a 400 `ValidationException`
+otherwise. The other enforced business rules are uniqueness
+(`Application.Name`, `Configuration.ConfigKey` and `Flag.FlagKey` within an
+application) and existence checks (404 on operations against a missing
+parent/entity). Keep this in mind when building UI against this API: key
+format and uniqueness are enforced server-side, but nothing else is - basic
+UX-level guards for other fields (e.g. not submitting an empty value)
+belong in the UI itself.
 
 ## Testing
 

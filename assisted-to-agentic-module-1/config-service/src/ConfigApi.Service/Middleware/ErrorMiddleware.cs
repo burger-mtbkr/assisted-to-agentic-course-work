@@ -33,6 +33,10 @@ public class ErrorMiddleware
         {
             await WriteResponseAsync(context, StatusCodes.Status409Conflict, "Conflict", ex.Message, ex);
         }
+        catch (DuplicateFlagKeyException ex)
+        {
+            await WriteResponseAsync(context, StatusCodes.Status409Conflict, "Conflict", ex.Message, ex);
+        }
         catch (ValidationException ex)
         {
             await WriteResponseAsync(context, StatusCodes.Status400BadRequest, "Bad Request", ex.Message, ex, ex.Errors);

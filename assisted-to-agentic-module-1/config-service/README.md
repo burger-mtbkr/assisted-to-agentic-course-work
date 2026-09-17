@@ -62,6 +62,8 @@ REST CRUD under `/api/v1`:
 - `/api/v1/applications` - `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}`
 - `/api/v1/applications/{applicationId}/configurations` - `GET`, `GET /{configKey}`,
   `POST`, `PUT /{configKey}`, `DELETE /{configKey}`
+- `/api/v1/applications/{applicationId}/flags` - `GET`, `GET /{flagKey}`,
+  `POST`, `PUT /{flagKey}`, `DELETE /{flagKey}` (Module 3)
 
 ## 4. Run the Admin UI
 

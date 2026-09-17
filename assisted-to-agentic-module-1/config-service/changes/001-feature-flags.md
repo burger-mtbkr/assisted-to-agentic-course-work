@@ -37,7 +37,7 @@ shows up.
 - **Then**: `/api/v1/applications/{applicationId}/flags` supports create,
   read, update, and delete, following the same patterns and error handling
   as `configurations`
-- **Status**: Not Started
+- **Status**: Complete
 
 #### Task 3: UI Feature Flag Administration
 
@@ -67,14 +67,18 @@ shows up.
 
 ## Current Task Focus
 
-- **Active task**: Task 2 - Backend Feature Flag Management
+- **Active task**: Task 3 - UI Feature Flag Administration
 - **Stage**: PLAN - Not Started
 - **Last updated**: 2026-09-17
 
-*Task 1 committed and purged - see commit history for detail. One
-standing note carried forward: the `config-service-local-dev` IAM policy
-was extended (inline policy `ConfigServiceDynamoDbAccess`) to cover the
-`flags` table ARN, and the table is tagged `ai-course=true` /
-`Module=assisted-to-agentic-module-3` for course cleanup. Task 2 will need
-no further IAM changes - the same policy statement already covers
-`GetItem`/`PutItem`/`UpdateItem`/`DeleteItem`/`Query`/`Scan` on `flags`.*
+*Tasks 1-2 committed and purged - see commit history for detail. Task 2
+deviated from the Notes' original assumption of a symmetric
+`Exceptions/Flags` folder mirroring `Configurations`: only
+`DuplicateFlagKeyException` was added there. `ApplicationNotFoundException`
+and `ValidationException` are reused as-is, and no `FlagNotFoundException`
+was added since the equivalent `ConfigurationNotFoundException` is dead
+code in this codebase (defined, caught by `ErrorMiddleware`, never thrown -
+"not found" goes through the `null`/`false`-return-to-`NotFound()` path
+instead). Verified against the real API and DynamoDB `flags` table
+(create/get/list/update/duplicate-409/invalid-400/missing-parent-404/
+delete/re-delete-404), not just the mocked unit suite.*

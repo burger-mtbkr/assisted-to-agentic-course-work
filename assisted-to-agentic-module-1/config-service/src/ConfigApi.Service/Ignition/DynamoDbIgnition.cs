@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2;
 using ConfigApi.Service.Infrastructure.DynamoDb;
 using ConfigApi.Service.Models.Applications;
 using ConfigApi.Service.Models.Configurations;
+using ConfigApi.Service.Models.Flags;
 using Microsoft.Extensions.Options;
 
 namespace ConfigApi.Service.Ignition;
@@ -28,6 +29,14 @@ public static class DynamoDbIgnition
             c => c.ApplicationId,
             "configKey",
             c => c.ConfigKey);
+
+        RegisterCompositeKeyCollection<Flag>(
+            builder,
+            "flags",
+            "applicationId",
+            f => f.ApplicationId,
+            "flagKey",
+            f => f.FlagKey);
     }
 
     private static void RegisterCollection<T>(
