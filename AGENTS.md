@@ -21,6 +21,15 @@ Curriculum-provided (synced from the course source - see its
 - `examples/` - reference material
 - `slides.pdf`
 
+**Known gotcha**: the sync process that adds these is external and not
+repo-controlled - it has landed new/updated modules directly at the repo
+root before, outside `modules/`. If you ever see an
+`assisted-to-agentic-module-N/` folder sitting at the repo root, that's a
+sync landing in the old location, not a new convention - move it into
+`modules/` (see `/new-module`'s step 1 for how to do this without
+clobbering student work if `modules/assisted-to-agentic-module-N/`
+already exists) rather than leaving it or treating it as correct.
+
 Student-added (created as you work through the module's exercise):
 
 - `prompts/` - numbered spec -> prompt -> plan artifacts, e.g.
