@@ -69,6 +69,15 @@ don't exist, skips ones that do. See `infra/README.md` for the migration
 numbering convention. Run this after adding a new migration, before running
 the API against it.
 
+**A new table needs a new IAM grant first.** `config-service-local-dev`'s
+inline policy (`ConfigServiceDynamoDbAccess`) lists table ARNs explicitly -
+provisioning a new table fails with `AccessDeniedException` on
+`DescribeTable` until that table's ARN is added to the policy's `Resource`
+array (same DynamoDB actions the existing tables already have - see the
+policy for the current list). This isn't part of any `npm run` script; it's
+a one-time `aws iam put-user-policy` (or console) step per new table,
+learned the hard way adding the `flags` table in Module 3.
+
 ### Running
 
 ```bash
@@ -147,6 +156,11 @@ are fine for:
 - One-off troubleshooting or debugging a single component (e.g. running one
   test class, inspecting a specific `dotnet format` diagnostic)
 - Investigating something this file doesn't yet cover
+- Infrastructure that has no script at all yet - IAM policy changes
+  (`aws iam ...`), one-time resource tagging (`aws dynamodb tag-resource`).
+  These are real, but rare and account-level; don't invent an `npm run`
+  wrapper for a one-time grant, just do it directly and document what
+  changed (see the Provisioning section above for the current example)
 
 They are not fine as a substitute for the documented scripts during normal
 development, testing, or the BUILD & ASSESS quality gate - use the `npm run
