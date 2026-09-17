@@ -8,12 +8,12 @@ small ordered list of idempotent table-creation steps.
 
 - Migration files live in `ConfigApi.Provisioning/Migrations/`, named
   `NNNN_Description.cs` with a four-digit, strictly increasing prefix
-  (`0001_CreateApplicationsTable.cs`, `0002_CreateConfigurationsTable.cs`, ...).
+  (`0001_CreateApplicationsTable.cs`, `0002_CreateConfigurationsTable.cs`,
+  `0003_CreateFlagsTable.cs`).
 - Once a migration is merged, its number and behavior are never edited.
   Schema changes are new migrations with the next number.
-- `0003` is reserved for the future `flags` table (Module 3: `applicationId`
-  partition key + `flagKey` sort key, matching the `configurations` table's
-  shape) - not implemented here.
+- `0003` creates the `flags` table (Module 3: `applicationId` partition key
+  + `flagKey` sort key, matching the `configurations` table's shape).
 
 ## How to run
 

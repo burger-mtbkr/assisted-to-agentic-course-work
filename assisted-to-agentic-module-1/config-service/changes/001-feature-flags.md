@@ -27,7 +27,7 @@ shows up.
 - **Then**: A documented schema exists for boolean flags (`applicationId`,
   `flagKey`, `enabled`, optional `description`), plus the migration
   (`0003_CreateFlagsTable.cs`) and validation rules needed to support it
-- **Status**: Not Started
+- **Status**: Complete
 
 #### Task 2: Backend Feature Flag Management
 
@@ -67,9 +67,14 @@ shows up.
 
 ## Current Task Focus
 
-- **Active task**: Task 1 - Feature Flag Domain Model and API Contract
+- **Active task**: Task 2 - Backend Feature Flag Management
 - **Stage**: PLAN - Not Started
 - **Last updated**: 2026-09-17
 
-*Stage detail sections intentionally left blank - filled in when PLAN
-starts, per `context/WORKFLOW_STATUS.md`.*
+*Task 1 committed and purged - see commit history for detail. One
+standing note carried forward: the `config-service-local-dev` IAM policy
+was extended (inline policy `ConfigServiceDynamoDbAccess`) to cover the
+`flags` table ARN, and the table is tagged `ai-course=true` /
+`Module=assisted-to-agentic-module-3` for course cleanup. Task 2 will need
+no further IAM changes - the same policy statement already covers
+`GetItem`/`PutItem`/`UpdateItem`/`DeleteItem`/`Query`/`Scan` on `flags`.*

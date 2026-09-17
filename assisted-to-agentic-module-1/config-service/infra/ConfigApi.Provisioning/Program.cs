@@ -10,7 +10,8 @@ using var client = new AmazonDynamoDBClient(RegionEndpoint.GetBySystemName(regio
 ITableMigration[] migrations =
 [
     new CreateApplicationsTable(),
-    new CreateConfigurationsTable()
+    new CreateConfigurationsTable(),
+    new CreateFlagsTable()
 ];
 
 foreach (var migration in migrations.OrderBy(m => m.Version))

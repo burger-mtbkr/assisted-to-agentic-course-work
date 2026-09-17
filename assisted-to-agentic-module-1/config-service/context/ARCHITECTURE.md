@@ -72,9 +72,11 @@ REST CRUD under `/api/v1` for `applications` and nested
 
 ## Key technical decisions
 
-- **Two tables, not single-table design** - `applications` and
-  `configurations` are separate DynamoDB tables (matching `income-service`'s
-  pattern), not modeled as one table with composite sort keys.
+- **Separate tables, not single-table design** - `applications`,
+  `configurations`, and (Module 3) `flags` are separate DynamoDB tables
+  (matching `income-service`'s pattern), not modeled as one table with
+  composite sort keys. `flags` mirrors `configurations`' composite-key
+  shape (`applicationId` partition, `flagKey` sort).
 - **Scan-and-cache reads, not indexed queries** - both collection types read
   via a full table scan, cached for `ScanCacheSeconds` (see
   `appsettings.json`'s `DynamoDB` section) and invalidated on every write.
