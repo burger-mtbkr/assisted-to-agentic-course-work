@@ -1,11 +1,16 @@
 # Assisted to Agentic - Course Workspace
 
 This repo tracks a 9-week "Assisted to Agentic" course. Each week a new
-`assisted-to-agentic-module-N/` folder is added, and each module folder is
-self-contained: it holds both the curriculum content and the student's work
-for that week.
+`modules/assisted-to-agentic-module-N/` folder is added, and each module
+folder is self-contained: it holds both the curriculum content and the
+student's work for that week. Project implementation folders that get
+extended across multiple modules (e.g. `config-service/`, started in
+Module 1 and extended by Module 3) live at the repo root, as siblings to
+`modules/`, rather than nested inside any one module's folder - they're
+shared across modules, not owned by whichever module happened to start
+them.
 
-## Inside each `assisted-to-agentic-module-N/`
+## Inside each `modules/assisted-to-agentic-module-N/`
 
 Curriculum-provided (synced from the course source - see its
 `.published-from-curriculum.json` - treat as read-only reference material):
@@ -21,8 +26,9 @@ Student-added (created as you work through the module's exercise):
 - `prompts/` - numbered spec -> prompt -> plan artifacts, e.g.
   `1-web-api-specs.md`, `2-web-api-prompt.md`, `3-web-api-plan.md`
 - `JOURNAL.md` - that module's collaboration journal
-- the module's project implementation folder (e.g. `config-service/` in
-  Module 1), which later modules may extend in place
+- a project implementation folder, if that module's exercise starts one
+  and it's scoped to that module alone - shared/extended projects live at
+  the repo root instead (see above)
 
 ## Journal entries
 
@@ -51,15 +57,15 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
 - Don't add dependencies, scope, or files beyond what the current module's
   spec/prompt/plan calls for.
 - When a later module extends an earlier module's project (e.g. Module 3
-  adding feature flags to Module 1's config service), check that module's
-  INSTRUCTIONS.md for whether it extends the existing folder in place or
-  starts a new one, and follow that rather than assuming.
+  adding feature flags to `config-service`, started in Module 1), check
+  that module's INSTRUCTIONS.md for whether it extends the existing folder
+  in place or starts a new one, and follow that rather than assuming.
 
 ## Tools set up for this course
 
 - `/new-module <N>` - scaffold `prompts/` and `JOURNAL.md` inside
-  `assisted-to-agentic-module-N/` for a newly-added module, and summarize
-  that week's instructions.
+  `modules/assisted-to-agentic-module-N/` for a newly-added module, and
+  summarize that week's instructions.
 - `/journal` - append an entry to the current module's `JOURNAL.md` using
   the template above.
 - Persona subagents matching the course's Role + Action + Context model:

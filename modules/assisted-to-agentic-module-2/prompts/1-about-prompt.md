@@ -2,15 +2,15 @@ Prompt used to fill in `context/ABOUT.md` (Exercise 1).
 
 ---
 
-Fill in `@assisted-to-agentic-module-1/config-service/context/ABOUT.md`.
+Fill in `@config-service/context/ABOUT.md`.
 The file already has a skeleton with section headers (Name, Description,
 Justification, Personas, Domain context, Scope) and TODO placeholders -
 replace the placeholders, don't change the structure.
 
 Ground every claim in something real, not invented:
-- `@assisted-to-agentic-module-1/project/prompts/1-web-api-specs.md` for
+- `@modules/assisted-to-agentic-module-1/project/prompts/1-web-api-specs.md` for
   what the service was originally specified to do
-- `@assisted-to-agentic-module-1/config-service/README.md` for what it
+- `@config-service/README.md` for what it
   actually does today
 - the live OpenAPI schema (`GET /openapi/v1.json` against the running
   service) for the real `Application`/`Configuration` shapes

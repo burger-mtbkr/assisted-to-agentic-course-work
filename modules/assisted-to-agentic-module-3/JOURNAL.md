@@ -7,9 +7,9 @@
 - **Tool**: Claude Code (VS Code extension)
 - **Mode**: Plan mode (`EnterPlanMode`/`ExitPlanMode`) for the design, then
   direct file edits and shell commands for execution
-- **Context**: `assisted-to-agentic-module-3/` (curriculum: README.md,
+- **Context**: `modules/assisted-to-agentic-module-3/` (curriculum: README.md,
   project/INSTRUCTIONS.md, project/INTEGRATE.md, the Python/Make worked
-  example) and `assisted-to-agentic-module-1/config-service/` (the actual
+  example) and `config-service/` (the actual
   student project this module extends in place)
 - **Model**: Claude Sonnet 5 (`claude-sonnet-5`)
 - **Input**: Read Module 3's actual exercise steps (INSTRUCTIONS.md, not
@@ -69,7 +69,7 @@
   workflow scaffolded in Entry 1 (`context/WORKFLOW_STATUS.md`) supplied the
   structure instead, run once per task without stopping for a stage-gate
   confirmation each time (explicit user direction - see Reflections)
-- **Context**: `assisted-to-agentic-module-1/config-service/`
+- **Context**: `config-service/`
   (`changes/001-feature-flags.md`, the whole `Configurations` vertical
   slice as the pattern to mirror, `ui/`, `infra/`), plus the real AWS
   account (DynamoDB, IAM) and a real headless-Chrome session for UI
@@ -97,7 +97,7 @@
   touching DynamoDB or the UI was verified against the real API/database or
   a real browser session, not just the mocked unit suite. Work item purged
   to acceptance-criteria-only per the workflow's own discipline;
-  `assisted-to-agentic-module-3/INTEGRATE-REFLECTIONS.md` written answering
+  `modules/assisted-to-agentic-module-3/INTEGRATE-REFLECTIONS.md` written answering
   `project/INTEGRATE.md`'s four questions; `context/ENV_SCRIPTS.md` updated
   with the IAM/off-script gap this session surfaced.
 - **Cost**: Not tracked for this entry.

@@ -3,17 +3,20 @@
 ## Context
 
 The student (you) is doing the Module 1 "Configuration API Service" exercise defined
-in `assisted-to-agentic-module-1/project/INSTRUCTIONS.md`. That document assumes
+in `modules/assisted-to-agentic-module-1/project/INSTRUCTIONS.md`. That document assumes
 Cline + OpenRouter + Claude Sonnet 4; per your direction, **Claude Code is used
 throughout instead** — same Plan-then-Act discipline, same journal template, just a
 different tool/model recorded in each journal entry (Tool: Claude Code, Model:
 `claude-sonnet-5`).
 
 Git is already initialized at the repo root, so Step 1's `git init .` is not
-needed. All student-authored artifacts (`prompts/`, `JOURNAL.md`, `AGENTS.md`,
-`config-service/`) live directly under `assisted-to-agentic-module-1/` — not inside
-`project/`, which the repo's own [AGENTS.md](../AGENTS.md) designates read-only
-curriculum reference material shared by all modules.
+needed. Student-authored artifacts `prompts/`, `JOURNAL.md`, and `AGENTS.md`
+live directly under `modules/assisted-to-agentic-module-1/` — not inside
+`project/`, which the repo's own [AGENTS.md](../../AGENTS.md) designates read-only
+curriculum reference material shared by all modules. (`config-service/` was
+also created here at the time this plan was written, but moved to the repo
+root in Module 3, once it became a project shared and extended across
+modules rather than owned by Module 1 alone.)
 
 Step 2 requires `prompts/1-web-api-specs.md` to name a real, deployable database.
 Your first pick (`json-flatfile-datastore`) is a JSON flat-file store, which the
@@ -85,7 +88,7 @@ a fresh session without re-deriving these decisions.
 - Course's reference spec/example (`examples/web-api-example-specs.md`,
   `examples/config-service/`) uses Python/FastAPI/Postgres — useful only as a
   structural template for what the spec file should cover, not as a tech choice.
-- `assisted-to-agentic-module-1/` currently contains only curriculum content
+- `modules/assisted-to-agentic-module-1/` currently contains only curriculum content
   (`README.md`, `project/INSTRUCTIONS.md`, `project/INTEGRATE.md`, `slides.pdf`,
   `examples/`) — no student artifacts exist yet.
 
@@ -93,12 +96,12 @@ a fresh session without re-deriving these decisions.
 
 ## Step 1 — Scaffold working folder
 
-Directly under `assisted-to-agentic-module-1/`, create:
+Directly under `modules/assisted-to-agentic-module-1/`, create:
 
 - `prompts/` folder
 - `JOURNAL.md` — using the template below (Prompt / Tool / Mode / Context / Model /
   Input / Output / Cost / Reflections), one entry per collaboration, filled in as you
-  go, per this repo's own [AGENTS.md](../AGENTS.md) convention ("every meaningful AI
+  go, per this repo's own [AGENTS.md](../../AGENTS.md) convention ("every meaningful AI
   collaboration gets a journal entry before moving on").
 - `AGENTS.md` — empty skeleton to start, per the course's setup instructions ("touch
   AGENTS.md ... you'll build this out properly in Module 2"). This is a *different*
@@ -204,7 +207,7 @@ c. Review the scaffolded project; capture reflections in the journal entry.
 
 d. Capture any code-level conventions you want followed going forward in this
    module's `AGENTS.md` (the one created in Step 1, at
-   `assisted-to-agentic-module-1/AGENTS.md`) — most AI coding tools auto-load this.
+   `modules/assisted-to-agentic-module-1/AGENTS.md`) — most AI coding tools auto-load this.
 
 e. Ensure `config-service/.gitignore` is in place and correct (bin/obj folders,
    `.env`/user-secrets, etc.), then commit everything before moving on.
@@ -250,9 +253,10 @@ it directly.
 
 ## Verification (end of exercise)
 
-- `assisted-to-agentic-module-1/{prompts/,JOURNAL.md,AGENTS.md,config-service/}`
-  all exist with real content, each exercise step's output committed separately per
-  the "commit before iterating" discipline.
+- `modules/assisted-to-agentic-module-1/{prompts/,JOURNAL.md,AGENTS.md}` and
+  (now at the repo root - see the note at the top of this document)
+  `config-service/` all exist with real content, each exercise step's output
+  committed separately per the "commit before iterating" discipline.
 - `config-service/` builds and its unit test suite passes (`dotnet test`).
 - The two DynamoDB tables exist in AWS (`ap-southeast-6`, New Zealand), on-demand
   billing, PITR disabled, and the running service can read/write through them

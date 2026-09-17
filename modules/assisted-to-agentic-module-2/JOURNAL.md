@@ -8,7 +8,7 @@
 - Context: Continued - this ran in the same long-running session as the Module 1/Module 2 research and the live service smoke test, not a fresh conversation as the exercise instructions suggest. Deliberate tradeoff (see reflections).
 - Model: claude-sonnet-5
 - Input: hand-written `context/ABOUT.md` skeleton (headers + TODO placeholders) + the Module 1 spec (`project/prompts/1-web-api-specs.md`), `config-service/README.md`, the live OpenAPI schema, and results from a CRUD smoke test run against the real service/DynamoDB (uniqueness 409, FK relationship, delete-with-children 409, confirmed no auth layer via grep)
-- Output: filled `assisted-to-agentic-module-1/config-service/context/ABOUT.md` (Name, Description, Justification, Personas, Domain context, Scope)
+- Output: filled `config-service/context/ABOUT.md` (Name, Description, Justification, Personas, Domain context, Scope)
 - Cost: subscription-based Claude Code session; no per-call token/dollar figure surfaced
 - Reflections: Running the live smoke test first (rather than writing from the spec alone) made the Domain Context and Scope sections meaningfully more confident - the delete-with-children 409 and the "no auth" gap are both things confirmed against real behavior, not assumed from the spec. Staying in one continuous session (vs. the instructions' "new conversation, clean context" pattern) traded away the exercise's intended test of context re-discovery, but avoided re-deriving facts already gathered this session - worth doing a genuinely fresh-context pass for at least one later exercise (e.g. Exercise 4) to actually experience what the module is testing.
 
@@ -56,7 +56,7 @@
 - Mode: Act mode
 - Context: Continued (same session)
 - Model: claude-sonnet-5
-- Input: the reference Makefile's target set (`assisted-to-agentic-module-2/examples/config-service/Makefile`) as a naming/scope guide; the actual `svc`/`ui` commands already exercised manually earlier in this session.
+- Input: the reference Makefile's target set (`modules/assisted-to-agentic-module-2/examples/config-service/Makefile`) as a naming/scope guide; the actual `svc`/`ui` commands already exercised manually earlier in this session.
 - Output: `config-service/package.json` (root task runner: `install`, `test`, `run:svc`, `run:ui`, `build:ui`, `provision`, each namespaced `:svc`/`:ui` where it applies), plus a small accuracy fix to `config-service/README.md`'s project layout tree, which had gone stale (missing `context/`, `ui/`, `AGENTS.md`, `package.json`).
 - Cost: subscription-based Claude Code session; no per-call token/dollar figure surfaced
 - Reflections: `npm run` with no arguments turned out to be a genuinely good "equivalent" to `make help` - npm prints the full script list (and the composite scripts' definitions) unprompted, so no separate help target was needed. Running `npm run test` for real surfaced a real friction point: the background service process I'd left running from the CORS check locked `ConfigApi.Service.exe`, so `dotnet test`'s rebuild step failed until I killed it - a reminder that "the task runner works" needs to be checked by running it, not just by reading the script definitions. Updating the stale README layout was a small thing, but leaving it wrong would have directly contradicted the module's own "keep it accurate" principle for context documents - the same standard should apply to a plain README.
