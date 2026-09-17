@@ -4,13 +4,16 @@ public class ApplicationService : IApplicationService
 {
     private readonly IApplicationRepository _applicationRepository;
     private readonly IConfigurationRepository _configurationRepository;
+    private readonly IFlagRepository _flagRepository;
 
     public ApplicationService(
         IApplicationRepository applicationRepository,
-        IConfigurationRepository configurationRepository)
+        IConfigurationRepository configurationRepository,
+        IFlagRepository flagRepository)
     {
         _applicationRepository = applicationRepository;
         _configurationRepository = configurationRepository;
+        _flagRepository = flagRepository;
     }
 
     public IReadOnlyList<Application> GetAll() => _applicationRepository.GetAll();
@@ -56,7 +59,8 @@ public class ApplicationService : IApplicationService
         }
 
         var hasConfigurations = _configurationRepository.GetAllForApplication(id).Any();
-        if (hasConfigurations)
+        var hasFlags = _flagRepository.GetAllForApplication(id).Any();
+        if (hasConfigurations || hasFlags)
         {
             return false;
         }

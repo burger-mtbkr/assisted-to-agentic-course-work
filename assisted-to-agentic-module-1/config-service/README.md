@@ -65,6 +65,56 @@ REST CRUD under `/api/v1`:
 - `/api/v1/applications/{applicationId}/flags` - `GET`, `GET /{flagKey}`,
   `POST`, `PUT /{flagKey}`, `DELETE /{flagKey}` (Module 3)
 
+## Consuming feature flags safely
+
+A flag can be in one of three states from a consuming application's point of
+view, and they mean different things:
+
+1. **`GET /{flagKey}` returns `200` with `"enabled": true`** - explicitly on.
+2. **`GET /{flagKey}` returns `200` with `"enabled": false`** - explicitly
+   off. Not the same as missing - someone deliberately disabled it.
+3. **`GET /{flagKey}` returns `404`** - the flag was never created for this
+   application. This is not "disabled" - it's "not configured yet," and
+   should resolve to whatever default the *consuming* application chooses,
+   not to `false` by convention.
+
+Collapsing 404 and `enabled: false` into the same outcome is the most common
+mistake: it silently turns "nobody has decided yet" into "explicitly turned
+off," which is wrong whenever a flag's sane default is *on* (e.g. a flag
+that guards a deprecated code path you're phasing out - missing should mean
+"keep the new behavior," not "fall back to the old one").
+
+A safe read pattern (C#, no SDK required - this API has no client library,
+just plain HTTP):
+
+```csharp
+async Task<bool> IsEnabledAsync(HttpClient client, string applicationId, string flagKey, bool defaultValue)
+{
+    var response = await client.GetAsync($"/api/v1/applications/{applicationId}/flags/{flagKey}");
+
+    if (response.StatusCode == HttpStatusCode.NotFound)
+    {
+        return defaultValue; // not configured yet - caller's default, not false
+    }
+
+    response.EnsureSuccessStatusCode();
+    var flag = await response.Content.ReadFromJsonAsync<FlagResponse>();
+    return flag!.Enabled; // explicit value from the service - trust it
+}
+```
+
+Two more things worth knowing before wiring this into a hot path:
+
+- **No caching or push updates.** Every call is a live read (scan-and-cache
+  server-side, see `context/ARCHITECTURE.md`, but no client-side caching
+  contract). A consuming application calling this per-request should add its
+  own short-lived cache; this API doesn't do it for you.
+- **Deleting an application requires removing its flags first** (`DELETE
+  /applications/{id}` returns `409` while configuration entries or feature
+  flags still exist) - if you're decommissioning a flag's owning
+  application, clean up flags (and configurations) before the application
+  itself.
+
 ## 4. Run the Admin UI
 
 With the API running (step 3), in a separate terminal:

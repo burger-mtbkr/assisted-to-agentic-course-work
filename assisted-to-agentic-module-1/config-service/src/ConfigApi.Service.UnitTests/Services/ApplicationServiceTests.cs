@@ -6,11 +6,15 @@ public class ApplicationServiceTests
 {
     private readonly Mock<IApplicationRepository> _applicationRepository = new();
     private readonly Mock<IConfigurationRepository> _configurationRepository = new();
+    private readonly Mock<IFlagRepository> _flagRepository = new();
     private readonly ApplicationService _service;
 
     public ApplicationServiceTests()
     {
-        _service = new ApplicationService(_applicationRepository.Object, _configurationRepository.Object);
+        _service = new ApplicationService(
+            _applicationRepository.Object,
+            _configurationRepository.Object,
+            _flagRepository.Object);
     }
 
     [Fact]
@@ -88,6 +92,7 @@ public class ApplicationServiceTests
         _configurationRepository
             .Setup(r => r.GetAllForApplication("1"))
             .Returns([new Configuration { ApplicationId = "1", ConfigKey = "key" }]);
+        _flagRepository.Setup(r => r.GetAllForApplication("1")).Returns([]);
 
         var result = await _service.DeleteAsync("1");
 
@@ -96,11 +101,28 @@ public class ApplicationServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_ReturnsTrue_WhenNoConfigurationsExist()
+    public async Task DeleteAsync_ReturnsFalse_WhenFlagsExist()
     {
         var application = new Application { Id = "1", Name = "App" };
         _applicationRepository.Setup(r => r.GetById("1")).Returns(application);
         _configurationRepository.Setup(r => r.GetAllForApplication("1")).Returns([]);
+        _flagRepository
+            .Setup(r => r.GetAllForApplication("1"))
+            .Returns([new Flag { ApplicationId = "1", FlagKey = "flag" }]);
+
+        var result = await _service.DeleteAsync("1");
+
+        Assert.False(result);
+        _applicationRepository.Verify(r => r.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ReturnsTrue_WhenNoConfigurationsOrFlagsExist()
+    {
+        var application = new Application { Id = "1", Name = "App" };
+        _applicationRepository.Setup(r => r.GetById("1")).Returns(application);
+        _configurationRepository.Setup(r => r.GetAllForApplication("1")).Returns([]);
+        _flagRepository.Setup(r => r.GetAllForApplication("1")).Returns([]);
         _applicationRepository.Setup(r => r.DeleteAsync("1")).ReturnsAsync(true);
 
         var result = await _service.DeleteAsync("1");

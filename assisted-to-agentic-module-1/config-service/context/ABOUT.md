@@ -24,10 +24,13 @@ independently readable/writable at runtime.
 ## Personas
 
 - **Backend engineering teams** - the primary consumer. Register their
-  application once, then read/write its configuration entries
-  programmatically against `/api/v1/applications/{id}/configurations`.
-- **Administrators** - manage applications and configuration values directly,
-  without hand-crafting API calls, via the Admin UI (`ui/`, this module).
+  application once, then read/write its configuration entries and feature
+  flags programmatically against `/api/v1/applications/{id}/configurations`
+  and `/api/v1/applications/{id}/flags` - see `README.md`'s "Consuming
+  feature flags safely" for the read pattern.
+- **Administrators** - manage applications, configuration values, and
+  feature flags directly, without hand-crafting API calls, via the Admin UI
+  (`ui/`, this module).
 
 ## Domain context
 
@@ -37,16 +40,20 @@ independently readable/writable at runtime.
 - **Configuration entry** - a `configKey`/`value` pair belonging to exactly
   one application (`applicationId` is a required reference, the DynamoDB
   equivalent of a foreign key). `configKey` is unique within its application.
+- **Feature flag** - a `flagKey`/`enabled` (boolean) pair belonging to
+  exactly one application, same shape and uniqueness rule as a configuration
+  entry. Boolean only for now - no percentage rollout or audience targeting.
 - An application cannot be deleted while it still has configuration entries
-  (`DELETE` returns `409 Conflict` until they're removed first).
+  or feature flags (`DELETE` returns `409 Conflict` until both are removed
+  first).
 
 ## Scope
 
-In scope today: CRUD for applications and their configuration entries, plus
-a dependency-free `GET /health` check. Explicitly not in scope yet:
+In scope today: CRUD for applications and their configuration entries,
+per-application boolean feature flags (Module 3 - a separate `flags` table,
+`applicationId` + `flagKey`, same shape as configuration entries), plus a
+dependency-free `GET /health` check. Explicitly not in scope yet:
 
-- **Feature flags** - planned for Module 3 (a separate `flags` table keyed
-  by `applicationId` + `flagKey`, already reserved as migration slot `0003`).
 - **Authentication/authorization** - the API currently has no auth layer;
   anyone who can reach it can read and write any application's config.
 - **Config versioning/rollback and multi-environment separation** - a single
