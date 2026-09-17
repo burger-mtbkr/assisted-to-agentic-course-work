@@ -61,12 +61,12 @@ is still the final check after any change to that layer.
 ## Admin UI stack (this module)
 
 **TypeScript + Vite + Vitest, no UI framework**, calling the API directly
-with `fetch`. Chosen because: the UI's scope is three small views (list
-apps, view one app's config entries, edit a value) - a framework like
-React would add a dependency and a build-concept for no real benefit at
-this size; Vite/Vitest gives a fast dev server and a real test setup
-without hand-rolling either; and it mirrors the course's own reference
-implementation's approach (see
+with `fetch`. Chosen because: the UI's scope is small (list apps, view one
+app's config entries and feature flags, edit a value, toggle a flag) - a
+framework like React would add a dependency and a build-concept for no
+real benefit at this size; Vite/Vitest gives a fast dev server and a real
+test setup without hand-rolling either; and it mirrors the course's own
+reference implementation's approach (see
 `assisted-to-agentic-module-2/examples/config-service/ui/`), which the
 Module 2 instructions hold up as the shape of a "resist scope creep" admin
 tool. `ui/` sits as a sibling to `src/`, with its own `package.json` (see

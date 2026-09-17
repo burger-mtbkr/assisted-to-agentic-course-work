@@ -63,21 +63,9 @@ shows up.
 - **Then**: `npm run check` is clean, `context/ARCHITECTURE.md` and
   `context/IMPLEMENTATION.md` reflect the new slice, and the work item is
   purged down to its acceptance criteria
-- **Status**: Not Started
+- **Status**: Complete
 
 ## Current Task Focus
 
-- **Active task**: Task 5 - Rollout and Quality Validation
-- **Stage**: PLAN - Not Started
-- **Last updated**: 2026-09-17
-
-*Tasks 1-4 committed and purged - see commit history for detail. Task 4's
-documentation pass surfaced a real gap while writing the "delete an
-application" note: `ApplicationService.DeleteAsync`'s existing
-delete-with-children guard only checked configuration entries, not flags -
-an application with only flags (no config) could be deleted, orphaning its
-flags in DynamoDB. Fixed as part of this task (extended the guard to check
-both), not deferred, since it's the same "same patterns as configurations"
-behavior Task 2's AC already called for. Verified live: created an app with
-only a flag, confirmed `DELETE` returned 409, removed the flag, confirmed
-`DELETE` then returned 204.*
+Story complete - all five tasks done. No active task. Next work item:
+`changes/002-<name>.md`, not yet created.

@@ -66,10 +66,9 @@ conceptually similar errors - worth knowing when integrating a client:
   `ApplicationService.DeleteAsync` (`bool?`: `null` = not found, `false` =
   conflict because the application still has configuration entries or
   feature flags, `true` = deleted) directly as `NotFound()` / `Conflict()` /
-  `NoContent()` -
-  bypassing `ErrorMiddleware`, so that specific 409 comes back as ASP.NET's
-  default `ProblemDetails` shape (`{ type, title, status, traceId }`)
-  instead.
+  `NoContent()` - bypassing `ErrorMiddleware`, so that specific 409 comes
+  back as ASP.NET's default `ProblemDetails` shape (`{ type, title, status,
+  traceId }`) instead.
 
 Unhandled exceptions fall through to a generic 500 in `ErrorMiddleware`.
 

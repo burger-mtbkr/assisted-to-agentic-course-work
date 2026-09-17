@@ -6,20 +6,20 @@ Config API (`config-service`)
 
 ## Description
 
-A REST API for centrally storing and retrieving per-application configuration.
-Callers register an `application`, then create key/value `configuration`
-entries scoped to that application. Backed by AWS DynamoDB, deployable for
-real (not a demo/in-memory service) - C#, .NET 10, ASP.NET Core MVC,
-Controller -> Service -> Repository.
+A REST API for centrally storing and retrieving per-application configuration
+and feature flags. Callers register an `application`, then create key/value
+`configuration` entries and boolean `flag`s scoped to that application.
+Backed by AWS DynamoDB, deployable for real (not a demo/in-memory service) -
+C#, .NET 10, ASP.NET Core MVC, Controller -> Service -> Repository.
 
 ## Justification
 
-Application config (feature toggles aside - see Scope) tends to end up
-scattered across `.env` files, hardcoded constants, and per-team ad hoc
-stores, with no consistent way to read or update it without a redeploy.
-Config API gives every application one place to register itself and manage
-its configuration through a uniform REST interface, with each entry
-independently readable/writable at runtime.
+Application config and feature toggles tend to end up scattered across
+`.env` files, hardcoded constants, and per-team ad hoc stores, with no
+consistent way to read or update either without a redeploy. Config API
+gives every application one place to register itself and manage both
+through a uniform REST interface, with each entry independently
+readable/writable at runtime.
 
 ## Personas
 

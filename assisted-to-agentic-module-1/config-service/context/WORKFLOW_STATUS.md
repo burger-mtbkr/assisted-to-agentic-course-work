@@ -105,9 +105,9 @@ move to BUILD & ASSESS"). This applies even when the work looks finished -
 
 ## Current Status
 
-- **Work item**: [changes/001-feature-flags.md](../changes/001-feature-flags.md)
-- **Current task**: Task 5 - Rollout and Quality Validation
-- **Current stage**: PLAN - Not Started
+- **Work item**: [changes/001-feature-flags.md](../changes/001-feature-flags.md) - Complete (all 5 tasks)
+- **Current task**: None - next work item not yet created (`changes/002-<name>.md`)
+- **Current stage**: N/A
 - **Last updated**: 2026-09-17
 
 *All detail lives in the work item file above. This section is a pointer,

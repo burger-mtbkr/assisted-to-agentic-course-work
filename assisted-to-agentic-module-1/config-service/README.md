@@ -1,16 +1,16 @@
 # Configuration API Service
 
-A REST API for managing `applications` and their per-application `configurations`,
-backed by AWS DynamoDB. C#, .NET 10, ASP.NET Core MVC controllers,
-Controller -> Service -> Repository architecture (patterned after
-`income-service`).
+A REST API for managing `applications` and their per-application
+`configurations` and `flags`, backed by AWS DynamoDB. C#, .NET 10,
+ASP.NET Core MVC controllers, Controller -> Service -> Repository
+architecture (patterned after `income-service`).
 
 ## Prerequisites
 
 - .NET 10 SDK
 - An AWS account with access to DynamoDB in `ap-southeast-6` (Asia Pacific /
   New Zealand), and an IAM principal with permissions to describe/create/read/
-  write the `applications` and `configurations` tables.
+  write the `applications`, `configurations`, and `flags` tables.
 
 ## 1. Configure AWS credentials
 
@@ -28,8 +28,8 @@ These are loaded into process environment variables at startup via
 
 ## 2. Provision the DynamoDB tables
 
-Creates the `applications` and `configurations` tables if they don't already
-exist (idempotent - safe to re-run):
+Creates the `applications`, `configurations`, and `flags` tables if they
+don't already exist (idempotent - safe to re-run):
 
 ```
 dotnet run --project infra/ConfigApi.Provisioning
