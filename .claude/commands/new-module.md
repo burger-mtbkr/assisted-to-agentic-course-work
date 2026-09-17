@@ -4,10 +4,10 @@ description: Scaffold the student-work folders inside a newly-added course modul
 
 Scaffold module $ARGUMENTS of the "Assisted to Agentic" course:
 
-1. Check for `assisted-to-agentic-module-$ARGUMENTS/` at the repo root (outside `modules/`) - the course's external curriculum-sync process is not repo-controlled and has landed new modules directly at the root before, ahead of `modules/`. If it's there:
+1. Check for `assisted-to-agentic-module-$ARGUMENTS/` at the repo root (outside `modules/`) - the module's curriculum content is a zip downloaded from the course source and extracted by hand, and extracting it at the repo root (rather than straight into `modules/`) drops it in the old, pre-reorg location. If it's there:
    - If `modules/assisted-to-agentic-module-$ARGUMENTS/` doesn't exist yet, `git mv` the whole root folder there (preserves history).
-   - If `modules/assisted-to-agentic-module-$ARGUMENTS/` already exists (a re-sync landed at the root again), don't overwrite student-added files (`prompts/`, `JOURNAL.md`, module-level `AGENTS.md`) - merge only the curriculum-provided files/folders (`README.md`, `.published-from-curriculum.json`, `project/`, `examples/`, `slides.pdf`) from the stray root copy into `modules/assisted-to-agentic-module-$ARGUMENTS/`, then remove the now-empty root folder. If anything in that merge is ambiguous (e.g. curriculum content that looks student-modified), stop and ask rather than guessing.
-   - Either way, tell the user this happened so they know to expect it after future syncs too.
+   - If `modules/assisted-to-agentic-module-$ARGUMENTS/` already exists (this zip got extracted at the root again), don't overwrite student-added files (`prompts/`, `JOURNAL.md`, module-level `AGENTS.md`) - merge only the curriculum-provided files/folders (`README.md`, `.published-from-curriculum.json`, `project/`, `examples/`, `slides.pdf`) from the stray root copy into `modules/assisted-to-agentic-module-$ARGUMENTS/`, then remove the now-empty root folder. If anything in that merge is ambiguous (e.g. curriculum content that looks student-modified), stop and ask rather than guessing.
+   - Either way, tell the user this happened and suggest extracting future module zips directly into `modules/` to skip this step.
 2. Confirm `modules/assisted-to-agentic-module-$ARGUMENTS/` exists. If it doesn't (and step 1 found nothing to move), stop and tell the user to add that curriculum folder first.
 3. Inside it, create `prompts/` if it doesn't already exist.
 4. Inside it, create `JOURNAL.md` if it doesn't already exist, with a top-level `# Module $ARGUMENTS Journal` heading.
