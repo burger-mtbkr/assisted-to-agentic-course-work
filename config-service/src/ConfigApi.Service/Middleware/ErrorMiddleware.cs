@@ -21,10 +21,6 @@ public class ErrorMiddleware
         {
             await WriteResponseAsync(context, StatusCodes.Status404NotFound, "Not Found", ex.Message, ex);
         }
-        catch (ConfigurationNotFoundException ex)
-        {
-            await WriteResponseAsync(context, StatusCodes.Status404NotFound, "Not Found", ex.Message, ex);
-        }
         catch (DuplicateApplicationNameException ex)
         {
             await WriteResponseAsync(context, StatusCodes.Status409Conflict, "Conflict", ex.Message, ex);

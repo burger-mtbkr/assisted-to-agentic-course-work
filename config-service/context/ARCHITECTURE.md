@@ -51,17 +51,17 @@ Two different paths produce two different JSON shapes for what are
 conceptually similar errors - worth knowing when integrating a client:
 
 - **Thrown domain exceptions** (`ApplicationNotFoundException`,
-  `ConfigurationNotFoundException`, `DuplicateApplicationNameException`,
-  `DuplicateConfigurationKeyException`, `DuplicateFlagKeyException`,
-  `ValidationException`) are caught centrally by
-  `Middleware/ErrorMiddleware`, mapped to 404/404/409/409/409/400, and
+  `DuplicateApplicationNameException`, `DuplicateConfigurationKeyException`,
+  `DuplicateFlagKeyException`, `ValidationException`) are caught centrally
+  by `Middleware/ErrorMiddleware`, mapped to 404/409/409/409/400, and
   serialized as `{ status, title, detail, error, exceptionType, traceId }`.
-  `FlagsController` reuses `ApplicationNotFoundException` and
-  `ValidationException` (flag key format) rather than adding new exception
-  types for cases that map identically to the existing ones - there's no
-  `FlagNotFoundException`, matching that "not found" for `GetByKey`/`Update`/
-  `Delete` is handled as a `null`/`false` return translated to `NotFound()`
-  in the controller, same as `configurations`.
+  There is deliberately no `ConfigurationNotFoundException` or
+  `FlagNotFoundException`: "not found" on `GetByKey`/`Update`/`Delete` for a
+  child entity is a `null`/`false` return from the service, translated to
+  `NotFound()` in the controller. `ApplicationNotFoundException` is the
+  exception to that, and it is thrown by `ConfigurationService` and
+  `FlagService` on create, where the *parent* is missing rather than the
+  entity being addressed.
 - **`ApplicationsController.Delete`** returns a tri-state result from
   `ApplicationService.DeleteAsync` (`bool?`: `null` = not found, `false` =
   conflict because the application still has configuration entries or

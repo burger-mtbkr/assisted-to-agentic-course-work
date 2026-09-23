@@ -34,15 +34,6 @@ public class ErrorMiddlewareTests
     }
 
     [Fact]
-    public async Task ConfigurationNotFoundException_MapsTo404()
-    {
-        var (statusCode, body) = await InvokeAsync(new ConfigurationNotFoundException("Configuration key 'x' was not found."));
-
-        Assert.Equal(StatusCodes.Status404NotFound, statusCode);
-        Assert.Equal("ConfigurationNotFoundException", body.GetProperty("exceptionType").GetString());
-    }
-
-    [Fact]
     public async Task DuplicateApplicationNameException_MapsTo409()
     {
         var (statusCode, body) = await InvokeAsync(new DuplicateApplicationNameException("An application named 'x' already exists."));
