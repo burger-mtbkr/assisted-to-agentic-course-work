@@ -30,7 +30,7 @@ readable/writable at runtime.
   feature flags safely" for the read pattern.
 - **Administrators** - manage applications, configuration values, and
   feature flags directly, without hand-crafting API calls, via the Admin UI
-  (`ui/`, this module).
+  (`ui/`).
 
 ## Domain context
 

@@ -135,17 +135,34 @@ From the repo root:
 dotnet test src/ConfigApi.Service.sln
 ```
 
-With coverage (uses `src/ConfigApi.Service.UnitTests/coverlet.runsettings`,
-which excludes the `Infrastructure/DynamoDb` layer and `Ignition/DynamoDbIgnition`
-since those touch the real AWS SDK client):
+With coverage:
 
 ```
-dotnet test src/ConfigApi.Service.sln --settings src/ConfigApi.Service.UnitTests/coverlet.runsettings --collect:"XPlat Code Coverage"
+npm run coverage
 ```
+
+Writes a cobertura report to `src/ConfigApi.Service.UnitTests/TestResults/`.
+Every measured class is at 100% line and branch coverage. The excluded set
+(`src/ConfigApi.Service.UnitTests/coverlet.runsettings`) is the
+`Infrastructure/DynamoDb` layer, the `DynamoDbIgnition`/`LogIgnition`/
+`CorsIgnition` DI wiring, and `Program.cs` - the code that only does anything
+against the real AWS SDK client, and is verified by running the service for
+real instead.
 
 On Windows, stop any running `dotnet run`/`npm run run:api` instance first -
 `dotnet test`'s rebuild step can't overwrite a `.exe` that's still locked by
 a running process, and fails with an `MSB3027` copy error if one is.
+
+The unit suites mock every boundary, so they cannot catch a fault in the code
+that talks to DynamoDB. With the service running, exercise it for real:
+
+```
+npm run test:ui:integration
+```
+
+It creates a uniquely-named application plus one configuration entry and one
+flag, reads and updates them through the live API, and deletes all three
+afterwards - it never touches records it didn't create.
 
 ## Quality gates
 

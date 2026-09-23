@@ -48,17 +48,31 @@ Tests are colocated in a sibling `*.UnitTests` project, mirroring the
 source tree one-to-one (`Controllers/`, `Services/`, `Repositories/`,
 `Middleware/`, `Ignition/`). Repositories mock the DynamoDB collection
 interfaces; services mock repositories; controllers mock services -
-nothing in the unit suite touches a real AWS client. Coverage via
-`coverlet`, using `src/ConfigApi.Service.UnitTests/coverlet.runsettings`,
-which excludes `Infrastructure/DynamoDb` and `Ignition/DynamoDbIgnition`
-(the parts that construct a real `TableBuilder`) - those are only verified
-by running the service against real DynamoDB. This is a deliberate gap,
-not an oversight: it's exactly the boundary that hid the `TableBuilder`
-bug during Module 1, so treat "tests pass" as necessary but not
-sufficient - a live run against the real API (see `config-service/README.md`)
-is still the final check after any change to that layer.
+nothing in the unit suite touches a real AWS client. Coverage via `coverlet`
+(`npm run coverage`), using
+`src/ConfigApi.Service.UnitTests/coverlet.runsettings`, which excludes
+`Infrastructure/DynamoDb`, the `DynamoDbIgnition`/`LogIgnition`/`CorsIgnition`
+DI wiring, and `Program.cs` - the parts that only do anything against a real
+AWS client. Everything else is at 100% line and branch coverage.
 
-## Admin UI stack (this module)
+That exclusion is a deliberate gap, not an oversight: it's exactly the
+boundary that hid the `TableBuilder` bug during Module 1, so treat "tests
+pass" as necessary but not sufficient - a live run against the real API (see
+`config-service/README.md`) is still the final check after any change to that
+layer.
+
+A coverage filter that matches nothing fails silently and reads as a clean
+report. Coverlet's `Exclude` entries are `[assembly]fully.qualified.Type`, so
+the type half needs the whole namespace, not a path-style fragment
+(`[ConfigApi.Service]ConfigApi.Service.Infrastructure.DynamoDb.*`, not
+`[ConfigApi.Service]Infrastructure.DynamoDb.*`); `ExcludeByFile` in a `.runsettings`
+file takes literal commas, not the `%2c` escaping used on the MSBuild `/p:`
+command line. Both were wrong here until an audit re-measured and found the
+excluded classes still in the report, dragging the real figure to 33%. If a
+coverage number looks surprising in either direction, check that the filters
+bind before trusting it.
+
+## Admin UI stack
 
 **TypeScript + Vite + Vitest, no UI framework**, calling the API directly
 with `fetch`. Chosen because: the UI's scope is small (list apps, view one

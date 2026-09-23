@@ -129,4 +129,27 @@ public class ApplicationServiceTests
 
         Assert.True(result);
     }
+
+    [Fact]
+    public void GetAll_DelegatesToRepository()
+    {
+        var applications = new List<Application> { new() { Id = "app-1", Name = "App" } };
+        _applicationRepository.Setup(r => r.GetAll()).Returns(applications);
+
+        var result = _service.GetAll();
+
+        Assert.Same(applications, result);
+    }
+
+    [Fact]
+    public void GetById_DelegatesToRepository()
+    {
+        var application = new Application { Id = "app-1", Name = "App" };
+        _applicationRepository.Setup(r => r.GetById("app-1")).Returns(application);
+
+        var result = _service.GetById("app-1");
+
+        Assert.Same(application, result);
+    }
+
 }

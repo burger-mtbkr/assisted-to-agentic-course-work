@@ -5,8 +5,13 @@
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <Exclude>[ConfigApi.Service]Infrastructure.DynamoDb.*,[ConfigApi.Service]Ignition.DynamoDbIgnition</Exclude>
-          <ExcludeByFile>**/obj/**%2c**/Program.cs</ExcludeByFile>
+          <!-- Filters are [assembly]fully.qualified.Type - the type half needs the
+               full namespace, not a namespace-relative path, or it silently matches
+               nothing. Commas separate entries literally here; the %2c escaping form
+               is only for the MSBuild /p: command line. -->
+          <Exclude>[ConfigApi.Service]ConfigApi.Service.Infrastructure.DynamoDb.*,[ConfigApi.Service]ConfigApi.Service.Ignition.DynamoDbIgnition,[ConfigApi.Service]ConfigApi.Service.Ignition.LogIgnition,[ConfigApi.Service]ConfigApi.Service.Ignition.CorsIgnition</Exclude>
+          <ExcludeByFile>**/obj/**,**/Program.cs</ExcludeByFile>
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
         </Configuration>
       </DataCollector>
     </DataCollectors>

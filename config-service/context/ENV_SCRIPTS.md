@@ -4,6 +4,17 @@ Procedural memory: how to run this project. Read this before running anything
 by hand - if a command you need isn't listed here, that's a gap to fix in
 this file, not a reason to guess.
 
+## Prerequisites
+
+- .NET 10 SDK (`global.json` pins `10.0.100`, `rollForward: latestFeature`)
+- Node.js with npm, for the `ui/` workspace and the root task runner
+- An AWS account with DynamoDB in `ap-southeast-6`, and an IAM principal
+  allowed to describe/create/read/write the `applications`,
+  `configurations`, and `flags` tables (this project uses a dedicated
+  least-privilege user, `config-service-local-dev`)
+- No Docker, no local database, and no `make` - the root `package.json` is
+  the task runner (see Developer scripts below)
+
 ## Environments
 
 Local development only. No CI/CD, no staging, no production deployment
@@ -108,11 +119,18 @@ npm run test:ui             # vitest run (mocked unit suite, ui/src/api.test.ts)
 npm run test:ui:integration # vitest against the real running API - start run:api first
 ```
 
-Coverage (not wired into a script yet - run directly when needed):
+Coverage:
 
 ```bash
-dotnet test src/ConfigApi.Service.sln --settings src/ConfigApi.Service.UnitTests/coverlet.runsettings --collect:"XPlat Code Coverage"
+npm run coverage           # cobertura report -> src/ConfigApi.Service.UnitTests/TestResults/<guid>/
 ```
+
+Every measured class sits at 100% line and branch coverage. The excluded set
+is deliberate and listed in `coverlet.runsettings`: `Infrastructure/DynamoDb`,
+the three DI-wiring Ignition classes, and `Program.cs` - the code that only
+does anything against a real AWS client, verified by a live run instead (see
+`context/IMPLEMENTATION.md`). Coverage is not part of `npm run check`; run it
+when you change the shape of the service or test layers.
 
 **Windows gotcha**: stop any running `dotnet run` / `npm run run:api`
 process before `dotnet test` or `dotnet build` - the rebuild step can't

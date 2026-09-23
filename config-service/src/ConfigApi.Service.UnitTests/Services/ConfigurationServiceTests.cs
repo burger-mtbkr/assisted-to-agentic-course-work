@@ -104,4 +104,41 @@ public class ConfigurationServiceTests
 
         Assert.True(result);
     }
+
+    [Fact]
+    public void GetAllForApplication_DelegatesToRepository()
+    {
+        var configurations = new List<Configuration> { new() { ApplicationId = "app-1", ConfigKey = "key-a" } };
+        _configurationRepository.Setup(r => r.GetAllForApplication("app-1")).Returns(configurations);
+
+        var result = _service.GetAllForApplication("app-1");
+
+        Assert.Same(configurations, result);
+    }
+
+    [Fact]
+    public void GetByKey_DelegatesToRepository()
+    {
+        var configuration = new Configuration { ApplicationId = "app-1", ConfigKey = "key-a" };
+        _configurationRepository.Setup(r => r.GetByKey("app-1", "key-a")).Returns(configuration);
+
+        var result = _service.GetByKey("app-1", "key-a");
+
+        Assert.Same(configuration, result);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateAsync_Throws_ValidationException_WhenConfigKeyIsBlank(string configKey)
+    {
+        var application = new Application { Id = "app-1", Name = "App" };
+        _applicationRepository.Setup(r => r.GetById("app-1")).Returns(application);
+
+        var configuration = new Configuration { ConfigKey = configKey, Value = "v" };
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.CreateAsync("app-1", configuration));
+    }
+
 }

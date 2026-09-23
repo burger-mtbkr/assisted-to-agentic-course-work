@@ -104,4 +104,41 @@ public class FlagServiceTests
 
         Assert.True(result);
     }
+
+    [Fact]
+    public void GetAllForApplication_DelegatesToRepository()
+    {
+        var flags = new List<Flag> { new() { ApplicationId = "app-1", FlagKey = "flag-a" } };
+        _flagRepository.Setup(r => r.GetAllForApplication("app-1")).Returns(flags);
+
+        var result = _service.GetAllForApplication("app-1");
+
+        Assert.Same(flags, result);
+    }
+
+    [Fact]
+    public void GetByKey_DelegatesToRepository()
+    {
+        var flag = new Flag { ApplicationId = "app-1", FlagKey = "flag-a" };
+        _flagRepository.Setup(r => r.GetByKey("app-1", "flag-a")).Returns(flag);
+
+        var result = _service.GetByKey("app-1", "flag-a");
+
+        Assert.Same(flag, result);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateAsync_Throws_ValidationException_WhenFlagKeyIsBlank(string flagKey)
+    {
+        var application = new Application { Id = "app-1", Name = "App" };
+        _applicationRepository.Setup(r => r.GetById("app-1")).Returns(application);
+
+        var flag = new Flag { FlagKey = flagKey, Enabled = true };
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.CreateAsync("app-1", flag));
+    }
+
 }
