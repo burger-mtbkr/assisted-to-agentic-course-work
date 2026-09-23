@@ -85,6 +85,20 @@ npm run run:api           # dotnet run --project src/ConfigApi.Service (localhos
 npm run run:ui             # vite dev server (localhost:5173) - needs run:api already up
 ```
 
+`/` redirects to the Scalar UI (`/scalar`) in Development, so `npm run
+run:api` always lands on the interactive API docs rather than a 404.
+
+### Regenerating `openapi.json`
+
+`config-service/openapi.json` is a committed static export of the live
+OpenAPI document, so the API surface is reviewable without running the
+service. It goes stale silently - nothing checks it. Regenerate it after any
+change to controller routes or model shapes, with the service running:
+
+```bash
+curl http://localhost:5038/openapi/v1.json -o openapi.json
+```
+
 ### Testing
 
 ```bash

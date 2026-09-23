@@ -112,3 +112,10 @@ Plan-then-act per change, one commit per meaningful step, plain descriptive
 commit messages (`"Module N: <what changed>"`, not a conventional-commits
 format) - observed directly from `git log`, not an invented policy. No
 CI/CD configured yet.
+
+Build only what the active work item's acceptance criteria ask for. An early
+draft of this service's implementation plan added request DTOs and an
+`UpdatedDate` field the spec never mentioned; both were cut on review, and
+controllers still bind directly to `Application`/`Configuration`/`Flag`.
+Don't reintroduce speculative fields, DTOs, or abstractions - raise them as
+a question instead.
