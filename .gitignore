@@ -432,56 +432,9 @@ FodyWeavers.xsd
 *.msp
 
 ## Assisted to Agentic Modules
-modules/assisted-to-agentic-module-1/examples
-modules/assisted-to-agentic-module-1/slides.pdf
-modules/assisted-to-agentic-module-1/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-1/project/INTEGRATE.md
-modules/assisted-to-agentic-module-1/project
-
-modules/assisted-to-agentic-module-2/examples
-modules/assisted-to-agentic-module-2/slides.pdf
-modules/assisted-to-agentic-module-2/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-2/project/INTEGRATE.md
-modules/assisted-to-agentic-module-2/project
-
-modules/assisted-to-agentic-module-3/examples
-modules/assisted-to-agentic-module-3/slides.pdf
-modules/assisted-to-agentic-module-3/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-3/project/INTEGRATE.md
-modules/assisted-to-agentic-module-3/project
-
-modules/assisted-to-agentic-module-4/examples
-modules/assisted-to-agentic-module-4/slides.pdf
-modules/assisted-to-agentic-module-4/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-4/project/INTEGRATE.md
-modules/assisted-to-agentic-module-4/project
-
-modules/assisted-to-agentic-module-5/examples
-modules/assisted-to-agentic-module-5/slides.pdf
-modules/assisted-to-agentic-module-5/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-5/project/INTEGRATE.md
-modules/assisted-to-agentic-module-5/project
-
-modules/assisted-to-agentic-module-6/examples
-modules/assisted-to-agentic-module-6/slides.pdf
-modules/assisted-to-agentic-module-6/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-6/project/INTEGRATE.md
-modules/assisted-to-agentic-module-6/project
-
-modules/assisted-to-agentic-module-7/examples
-modules/assisted-to-agentic-module-7/slides.pdf
-modules/assisted-to-agentic-module-7/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-7/project/INTEGRATE.md
-modules/assisted-to-agentic-module-7/project
-
-modules/assisted-to-agentic-module-8/examples
-modules/assisted-to-agentic-module-8/slides.pdf
-modules/assisted-to-agentic-module-8/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-8/project/INTEGRATE.md
-modules/assisted-to-agentic-module-8/project
-
-modules/assisted-to-agentic-module-9/examples
-modules/assisted-to-agentic-module-9/slides.pdf
-modules/assisted-to-agentic-module-9/project/INSTRUCTIONS.md
-modules/assisted-to-agentic-module-9/project/INTEGRATE.md
-modules/assisted-to-agentic-module-9/project
+# Curriculum-provided, read-only reference material - not committed here.
+# NOTE: `project/` is git-ignored, so student work must never live inside it
+# (see AGENTS.md). Put prompts/, JOURNAL.md, etc. at the module root.
+modules/assisted-to-agentic-module-*/examples/
+modules/assisted-to-agentic-module-*/project/
+modules/assisted-to-agentic-module-*/slides.pdf

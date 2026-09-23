@@ -8,7 +8,7 @@ Justification, Personas, Domain context, Scope) and TODO placeholders -
 replace the placeholders, don't change the structure.
 
 Ground every claim in something real, not invented:
-- `@modules/assisted-to-agentic-module-1/project/prompts/1-web-api-specs.md` for
+- `@modules/assisted-to-agentic-module-1/prompts/1-web-api-specs.md` for
   what the service was originally specified to do
 - `@config-service/README.md` for what it
   actually does today

@@ -32,11 +32,16 @@ work if `modules/assisted-to-agentic-module-N/` already exists) rather
 than leaving it or treating it as correct. Simplest fix going forward:
 extract new module zips directly into `modules/`.
 
-Student-added (created as you work through the module's exercise):
+Student-added (created as you work through the module's exercise), always
+at the **module root**, never inside `project/` - the whole `project/`
+folder is git-ignored as curriculum material, so anything put there is
+silently untracked and lost on the next clone:
 
 - `prompts/` - numbered spec -> prompt -> plan artifacts, e.g.
   `1-web-api-specs.md`, `2-web-api-prompt.md`, `3-web-api-plan.md`
 - `JOURNAL.md` - that module's collaboration journal
+- `INTEGRATE-REFLECTIONS.md` - answers to `project/INTEGRATE.md`'s
+  reflection questions, one heading per question
 - a project implementation folder, if that module's exercise starts one
   and it's scoped to that module alone - shared/extended projects live at
   the repo root instead (see above)
