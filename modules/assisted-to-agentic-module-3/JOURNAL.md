@@ -118,3 +118,86 @@
   silently without the live DynamoDB checks. `context/IMPLEMENTATION.md`
   itself predicted exactly this failure mode from a Module 1 incident, and
   it held up a second time.
+
+## Entry 3: Cross-module compliance audit of Modules 1-3
+
+- **Prompt**: "Reivew the workspace. we have already compleed modules 1 - 3.
+  I want you to review hwat was done against theinstrcutions and examples. I
+  want you to ensure we have 100% correct." Then, after a first pass and an
+  honest admission that the examples had only been read secondhand: "Fix what
+  you need", "are you happy thsi si good enough?", and "thsi it not good
+  enough. keep fixing until you are 100% satisfied do not stop until done its
+  all tsted committted and pushed"
+- **Tool**: Claude Code (VS Code extension)
+- **Mode**: Direct execution - a review/repair pass, not a workflow task, so
+  no work item was opened under `changes/`
+- **Context**: Clean session. All three modules' `README.md`,
+  `project/INSTRUCTIONS.md` and `project/INTEGRATE.md`; the curriculum
+  `examples/` for each (read directly this time, in particular Module 3's
+  worked `WORKFLOW_STATUS.md`, `ENV_SCRIPTS.md`, `docs/template.md` and
+  `docs/001-feature-flags.md`, and Module 2's example `AGENTS.md` and
+  `context/`); the whole of `config-service/`; and `git log`
+- **Model**: Claude Opus 5 (`claude-opus-5`)
+- **Input**: The three modules' curriculum material and student artifacts,
+  plus the live service running against the real DynamoDB tables in
+  `ap-southeast-6`
+- **Output**: Four commits - `85e0128` (recover the git-ignored Module 1
+  prompts, populate Module 3's empty `prompts/`, simplify the `.gitignore`
+  module block, document the `project/` trap in the repo `AGENTS.md`),
+  `371cffd` (carry the last two orphaned Module 1 conventions into
+  `context/`), `d33f16e` (remove the dead `ConfigurationNotFoundException`),
+  `c5789f1` (fix the coverlet exclusion filters, add 8 tests, wire
+  `npm run coverage`, correct the coverage claims in `README.md` and
+  `context/IMPLEMENTATION.md`, harden `config-service/AGENTS.md`, add a
+  Prerequisites section to `ENV_SCRIPTS.md`)
+- **Cost**: Not separately metered in this environment.
+- **Reflections**: Two findings mattered, and both were invisible from
+  inside the modules themselves.
+
+  The first was a git problem, not a code problem. The `modules/` reorg had
+  moved Module 1's `prompts/` folder into `project/`, which `.gitignore`
+  excludes wholesale as curriculum material - so `1-web-api-specs.md`,
+  `2-web-api-prompt.md` and `3-web-api-plan.md` were sitting on disk,
+  looking perfectly present in the editor, while being absent from every
+  clone of the repo. The module's own `EXERCISE-PLAN.md` had written down
+  the correct rule ("student artifacts live directly under the module root,
+  not inside `project/`") back in Module 1, and the reorg silently broke it
+  three commits later. Worth noting for the course's own purposes: "the file
+  is there" and "the file is committed" are as different as "tests pass" and
+  "the feature works", and the same kind of check catches both.
+
+  The second was a quality-gate problem. `coverlet.runsettings` listed
+  exclusions that matched nothing - the `Exclude` filters were missing the
+  namespace prefix on the type half, and `ExcludeByFile` used `%2c`
+  comma-escaping that only works on the MSBuild `/p:` command line. A filter
+  that binds to nothing fails silently: the report still generates, still
+  looks authoritative, and the excluded classes are quietly still in it.
+  Module 1's journal recorded "every business-logic class shows 100% line
+  coverage" read off exactly such a report; re-measuring with corrected
+  filters gave 33.4% overall and 73-82% on the three service classes. The
+  gaps were small and real (untested pass-throughs, and the blank-key branch
+  of the key validators, which the existing `"bad key!"` cases never
+  reached), and eight tests closed them - 87 tests, 100% line and branch
+  across every measured class, this time verified rather than asserted.
+
+  Reading the examples directly rather than through the earlier journals'
+  account of them changed one thing materially. Module 3's example
+  `AGENTS.md` makes the workflow document mandatory - "read it before
+  planning any work" - where ours said only "load files selectively." That
+  is precisely the failure mode Entry 2 of this journal confesses to: the
+  assistant self-driving all four stages past a rule the workflow document
+  states in capitals. The rule was written down, but it was written down
+  somewhere the assistant had explicit permission not to read. Moving it to
+  the front door is a small edit and probably the most useful change in this
+  whole pass.
+
+  On verification: the earlier rounds of this audit reported "verified
+  working" on the strength of `npm run check`, which is the mocked suite -
+  the exact thing Module 1's retro says proves nothing about the real
+  system. That was the right criticism to accept. The final round ran the
+  service against real DynamoDB: 23/23 CRUD and error scenarios including
+  the delete-with-children guard for both children, CORS preflight from the
+  UI origin, the root -> `/scalar` redirect, `openapi.json` byte-identical
+  to the live document, and the integration suite green. The tables were
+  snapshotted beforehand and compared afterwards - no leftover test records,
+  no pre-existing data touched.
