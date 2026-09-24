@@ -2,9 +2,9 @@
 
 **Module 4 exercise | Phase 2: Pair Agent | Option C (skill pair, 2 of 2)**
 
-Filled-in copy of `examples/SCRIPT_DESIGN_TEMPLATE.md`, for the skill
+Filled-in copy of `modules/assisted-to-agentic-module-4/examples/SCRIPT_DESIGN_TEMPLATE.md`, for the skill
 designed in
-[land-work-item-SKILL-DESIGN.md](land-work-item-SKILL-DESIGN.md).
+[DESIGN.md](DESIGN.md).
 
 ---
 
@@ -49,16 +49,17 @@ red gate short-circuits the entire report.
 **Operation 1 - Locate project, pointer, and work item.**
 
 - What it does: the same resolution the launch script performs.
-- Approach: identical logic, deliberately duplicated rather than shared.
-  See Notes.
+- Approach: shared helpers in `.claude/skills/_lib/workflow.sh`, sourced by
+  both scripts. See Notes for why it is shared rather than duplicated.
 - Produces: `=== PROJECT ===`, `=== WORKFLOW POINTER ===`,
   `=== WORK ITEM ===`, `=== TASK STATUS ===`.
 
 **Operation 2 - Check for a blocking build process.**
 
-- What it does: detects a running API that would lock the build output.
-- Approach: `tasklist` on Windows, `pgrep`/`ps` elsewhere, matching
-  `ConfigApi.Service`. Print the documented stop command when found.
+- What it does: detects a running process that would lock the build output.
+- Approach: `tasklist` on Windows, `pgrep`/`ps` elsewhere, matching the
+  `BLOCKING_PROCESS` knob (default `ConfigApi.Service`). Print the
+  configured stop command when found. An empty knob disables the check.
 - Produces: `=== BLOCKING PROCESSES ===`, before the gate section, so the
   cause is visible above the symptom.
 
@@ -79,6 +80,17 @@ red gate short-circuits the entire report.
   `git diff --cached --stat`.
 - Produces: `=== WORKING TREE ===`, `=== DIFF STAT ===`. Prints `(clean)`
   when there is nothing, so the "nothing to land" case is unambiguous.
+
+**Operation 4b - Include the diff itself.**
+
+- What it does: supplies the evidence the acceptance verdicts rest on. A
+  stat line is a filename and a count; a Given-When-Then clause cannot be
+  judged from that.
+- Approach: `git diff --cached` + `git diff` (project-scoped, `--relative`),
+  followed by the first 80 lines of each untracked file (binary and build
+  paths skipped). Capped at `DIFF_MAX_LINES` (default 400) with an explicit
+  truncation marker telling the LLM to read the remaining files directly.
+- Produces: `=== DIFF ===`.
 
 **Operation 5 - Roll up touched folders and their READMEs.**
 
@@ -136,6 +148,9 @@ result: PASS (134s)
 (clean)
 
 === DIFF STAT ===
+(no uncommitted changes)
+
+=== DIFF ===
 (no uncommitted changes)
 
 === README REVIEW ===
@@ -221,18 +236,32 @@ expected condition. Then run it against config-service/ - including a real
 - [x] Stage-section detection finds `### STAGE` headings in an unpurged
       work item and reports `(none - already purged)` in `001`
 - [x] Runs in a repo with no `check` script - reports it, keeps going
+- [x] `=== DIFF ===` shows real hunks for modified files and the head of
+      new files on a dirty tree
+- [x] `LAND_BLOCKING_PROCESS=""` disables the process check and says so
+- [x] With `_lib/` absent, prints a clear error naming the missing path
 
 ---
 
 ## Notes and decisions
 
-- **The two scripts duplicate their resolution logic instead of sharing a
-  helper.** A shared `lib.sh` would be better engineering in application
-  code; here it would couple two skills that are meant to be
-  independently installable and independently copyable into someone else's
-  harness. The module's own guidance - self-contained skills, bundled
-  resources under the skill directory - points the same way. The
-  duplicated block is ~40 lines and is marked as such in both scripts.
+- **The resolution logic is shared, not duplicated.** The first version
+  duplicated ~130 lines between the two scripts on the grounds that each
+  skill directory should be independently installable. That argument lost
+  the first time the same bug (`git status --porcelain` ignoring
+  `--relative`) had to be fixed in both files. The helpers now live in
+  `.claude/skills/_lib/workflow.sh`; `_lib/` has no `SKILL.md`, so the
+  harness does not treat it as a skill. The cost is that installing either
+  skill elsewhere means copying `_lib/` too - and each script says exactly
+  that, with the path, if the file is missing. Since Option C is a pair by
+  definition, coupling them to a shared helper is the honest shape.
+- **Project specifics are knobs at the top of the script, not scattered
+  through it.** The first version hard-coded `ConfigApi.Service`,
+  `MSB3027`, `localhost:5038`, `openapi.json`, `(Controllers|Models)/` and
+  `^(src|infra|ui)/` inline, while the description claimed the skill worked
+  for any project on the workflow framework. That was a mismatch between
+  claim and code. They are now six named variables with comments, each
+  overridable via a `LAND_*` environment variable, so the claim is true.
 - **40 lines of failure tail, not 20.** `dotnet build` with
   warnings-as-errors emits its summary well after the first diagnostic;
   20 lines regularly cut off the actual error. Found by breaking a file on

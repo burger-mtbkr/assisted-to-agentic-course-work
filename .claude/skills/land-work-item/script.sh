@@ -16,6 +16,40 @@
 
 set -uo pipefail
 
+# --- Project knobs ----------------------------------------------------------
+# The only part of this script that knows which project it is landing in.
+# Everything below the knobs works for any project on the context/ + changes/
+# workflow framework; these values are what to change when pointing the skill
+# at a different one. Each can also be overridden from the environment.
+#
+# BLOCKING_PROCESS: a process that holds the build output locked while it
+#   runs. config-service/context/ENV_SCRIPTS.md documents that a running API
+#   makes dotnet build/test fail with MSB3027 - a failure that looks like a
+#   code defect in the gate output. Empty string disables the check.
+BLOCKING_PROCESS="${LAND_BLOCKING_PROCESS-ConfigApi.Service}"
+BLOCKING_PROCESS_STOP_HINT="${LAND_BLOCKING_PROCESS_STOP_HINT-powershell -NoProfile -Command \"Get-Process ConfigApi.Service -ErrorAction SilentlyContinue | Stop-Process -Force\"}"
+# SOURCE_DIRS_RE: which changed paths count as "source" for doc-drift purposes.
+SOURCE_DIRS_RE="${LAND_SOURCE_DIRS_RE-^(src|infra|ui)/}"
+# API_SURFACE_RE / API_SPEC_FILE: paths whose change should move the committed
+# API spec. ENV_SCRIPTS.md: openapi.json "goes stale silently - nothing checks it".
+API_SURFACE_RE="${LAND_API_SURFACE_RE-(Controllers|Models)/}"
+API_SPEC_FILE="${LAND_API_SPEC_FILE-openapi.json}"
+API_SPEC_REGEN_HINT="${LAND_API_SPEC_REGEN_HINT-curl http://localhost:5038/openapi/v1.json -o openapi.json}"
+# DIFF_MAX_LINES: cap on the unified diff included as acceptance evidence.
+DIFF_MAX_LINES="${LAND_DIFF_MAX_LINES-400}"
+
+# Shared resolution helpers (project, pointer, work item, task status, tree).
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../_lib/workflow.sh"
+if [ ! -f "$LIB" ]; then
+  printf '\n=== ERROR ===\n'
+  echo "Missing $LIB"
+  echo "This skill needs the sibling .claude/skills/_lib/ directory. Copy it"
+  echo "alongside the skill when installing into another harness."
+  exit 0
+fi
+# shellcheck source=../_lib/workflow.sh
+. "$LIB"
+
 PROJECT_DIR=""
 WORK_ITEM_ARG=""
 SKIP_CHECK=0
@@ -36,134 +70,39 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-section() { printf '\n=== %s ===\n' "$1"; }
-
-# --- Sanity: must be inside a git repo -------------------------------------
-if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  section "ERROR"
-  echo "Not inside a git working tree. Run this from a checked-out repo."
-  exit 0
-fi
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-
-# --- BEGIN shared resolution block ------------------------------------------
-# Deliberately duplicated from launch-work-item/script.sh so each skill
-# directory stays self-contained and independently installable. Keep in sync.
-
-find_project_dir() {
-  if [ -n "$PROJECT_DIR" ]; then
-    if [ -f "$PROJECT_DIR/context/WORKFLOW_STATUS.md" ]; then
-      echo "$PROJECT_DIR"; echo "(given by --project-dir)"
-      return 0
-    fi
-    return 1
-  fi
-
-  local dir; dir=$(pwd)
-  while [ -n "$dir" ]; do
-    if [ -f "$dir/context/WORKFLOW_STATUS.md" ]; then
-      echo "$dir"; echo "(found by walking up from the working directory)"
-      return 0
-    fi
-    [ "$dir" = "/" ] && break
-    local parent; parent=$(dirname "$dir")
-    [ "$parent" = "$dir" ] && break
-    dir="$parent"
-  done
-
-  # modules/ is excluded on purpose: the course's curriculum examples/ folders
-  # carry their own context/ trees, and landing against read-only reference
-  # material would be worse than failing.
-  local hit
-  hit=$(find "$REPO_ROOT" -maxdepth 3 -type f -name WORKFLOW_STATUS.md \
-          -not -path "*/modules/*" \
-          -not -path "*/node_modules/*" \
-          -not -path "*/bin/*" -not -path "*/obj/*" 2>/dev/null | head -1)
-  if [ -n "$hit" ]; then
-    dirname "$(dirname "$hit")"
-    echo "(found by searching the repo)"
-    return 0
-  fi
-  return 1
-}
-
-resolve_work_item() {
-  # $1 = project dir, $2 = pointer text. Echoes "path<TAB>how-resolved".
-  local proj="$1" pointer="$2" path=""
-
-  if [ -n "$WORK_ITEM_ARG" ]; then
-    if [ -f "$proj/$WORK_ITEM_ARG" ]; then
-      printf '%s\t%s\n' "$WORK_ITEM_ARG" "given by --work-item"; return 0
-    fi
-    if [ -f "$WORK_ITEM_ARG" ]; then
-      printf '%s\t%s\n' "$WORK_ITEM_ARG" "given by --work-item"; return 0
-    fi
-    path=$(ls "$proj"/changes/"$WORK_ITEM_ARG"-*.md 2>/dev/null | head -1)
-    if [ -n "$path" ]; then
-      printf '%s\t%s\n' "changes/$(basename "$path")" "given by --work-item"; return 0
-    fi
-    printf '\t%s\n' "NOT FOUND - --work-item '$WORK_ITEM_ARG' matched no file"; return 0
-  fi
-
-  path=$(printf '%s' "$pointer" | grep -oE 'changes/[0-9]{3}-[A-Za-z0-9._-]+\.md' | head -1)
-  if [ -n "$path" ] && [ -f "$proj/$path" ]; then
-    printf '%s\t%s\n' "$path" "resolved from the pointer"; return 0
-  fi
-
-  path=$(ls "$proj"/changes/[0-9][0-9][0-9]-*.md 2>/dev/null | sort | tail -1)
-  if [ -n "$path" ]; then
-    printf '%s\t%s\n' "changes/$(basename "$path")" "fallback - pointer had no usable reference"; return 0
-  fi
-
-  printf '\t%s\n' "none - no work items yet"
-}
-# --- END shared resolution block --------------------------------------------
-
-section "PROJECT"
-PROJ_OUT=$(find_project_dir)
-if [ -z "$PROJ_OUT" ]; then
-  echo "(not found)"
-  section "ERROR"
-  echo "No context/WORKFLOW_STATUS.md found. Looked in: the working directory"
-  echo "and its parents, then under $REPO_ROOT (max depth 3, excluding"
-  echo "modules/, node_modules/, bin/, obj/)."
-  echo "Pass --project-dir PATH to point at the project explicitly."
-  exit 0
-fi
-PROJ=$(printf '%s' "$PROJ_OUT" | head -1)
-echo "$PROJ_OUT"
-
-cd "$PROJ" || { section "ERROR"; echo "Could not enter $PROJ"; exit 0; }
+wf_require_git
+wf_locate_project "$PROJECT_DIR"
 
 # --- Blocking processes -----------------------------------------------------
-# context/ENV_SCRIPTS.md documents this: a running ConfigApi.Service locks the
-# build output and dotnet build/test fails with MSB3027. That looks like a code
-# failure in the gate output, which is the worst kind of misleading evidence to
-# lead a landing report with - so it is checked first.
-section "BLOCKING PROCESSES"
-proc_found=""
-if command -v tasklist >/dev/null 2>&1; then
-  proc_found=$(tasklist 2>/dev/null | grep -i "ConfigApi.Service" || true)
-elif command -v pgrep >/dev/null 2>&1; then
-  proc_found=$(pgrep -af "ConfigApi.Service" 2>/dev/null || true)
-elif command -v ps >/dev/null 2>&1; then
-  proc_found=$(ps aux 2>/dev/null | grep -i "[C]onfigApi.Service" || true)
+# Checked before the gate so the cause is printed above the symptom.
+wf_section "BLOCKING PROCESSES"
+if [ -z "$BLOCKING_PROCESS" ]; then
+  echo "(check disabled - no BLOCKING_PROCESS configured)"
 else
-  proc_found="__unchecked__"
-fi
-if [ "$proc_found" = "__unchecked__" ]; then
-  echo "(could not check - no tasklist, pgrep or ps available)"
-elif [ -n "$proc_found" ]; then
-  printf '%s\n' "$proc_found"
-  echo "WARNING: the API is running. dotnet build/test can fail with MSB3027"
-  echo "(locked .exe) for reasons unrelated to the code. Stop it with:"
-  echo "  powershell -NoProfile -Command \"Get-Process ConfigApi.Service -ErrorAction SilentlyContinue | Stop-Process -Force\""
-else
-  echo "(none)"
+  proc_found=""
+  if command -v tasklist >/dev/null 2>&1; then
+    proc_found=$(tasklist 2>/dev/null | grep -i "$BLOCKING_PROCESS" || true)
+  elif command -v pgrep >/dev/null 2>&1; then
+    proc_found=$(pgrep -af "$BLOCKING_PROCESS" 2>/dev/null || true)
+  elif command -v ps >/dev/null 2>&1; then
+    proc_found=$(ps aux 2>/dev/null | grep -i "$BLOCKING_PROCESS" | grep -v grep || true)
+  else
+    proc_found="__unchecked__"
+  fi
+  if [ "$proc_found" = "__unchecked__" ]; then
+    echo "(could not check - no tasklist, pgrep or ps available)"
+  elif [ -n "$proc_found" ]; then
+    printf '%s\n' "$proc_found"
+    echo "WARNING: $BLOCKING_PROCESS is running. The build can fail with a locked"
+    echo "output file (MSB3027 on .NET) for reasons unrelated to the code. Stop it:"
+    echo "  $BLOCKING_PROCESS_STOP_HINT"
+  else
+    echo "(none)"
+  fi
 fi
 
 # --- Quality gate -----------------------------------------------------------
-section "QUALITY GATE"
+wf_section "QUALITY GATE"
 if [ "$SKIP_CHECK" -eq 1 ]; then
   echo "result: SKIPPED (--skip-check was passed - this landing is UNVERIFIED)"
 elif ! command -v npm >/dev/null 2>&1; then
@@ -179,7 +118,7 @@ else
   if npm run check >"$log" 2>&1; then
     echo "result: PASS ($((SECONDS - start))s)"
     echo "--- summary lines ---"
-    grep -iE 'Passed!|passed|Test summary|Build succeeded|✓|Tests:' "$log" | tail -12
+    grep -E 'Passed!|Failed!|Test Files|^ +Tests |Build succeeded|error' "$log" | tail -12
   else
     echo "result: FAIL ($((SECONDS - start))s) - last 40 lines:"
     # 40, not 20: dotnet build with warnings-as-errors puts its summary well
@@ -189,70 +128,15 @@ else
   rm -f "$log"
 fi
 
-# --- Workflow pointer and work item -----------------------------------------
-section "WORKFLOW POINTER"
-POINTER=$(sed -n '/^## Current Status/,$p' context/WORKFLOW_STATUS.md 2>/dev/null \
-          | awk 'NR==1 {print; next} /^## / {exit} {print}')
-if [ -n "$POINTER" ]; then
-  printf '%s\n' "$POINTER"
-else
-  echo "(no '## Current Status' section in context/WORKFLOW_STATUS.md)"
-fi
-
-section "WORK ITEM"
-RESOLVED=$(resolve_work_item "$PROJ" "$POINTER")
-WORK_ITEM=$(printf '%s' "$RESOLVED" | cut -f1)
-HOW=$(printf '%s' "$RESOLVED" | cut -f2)
-if [ -z "$WORK_ITEM" ]; then
-  echo "path: (unresolved - $HOW)"
-  if ls changes/[0-9][0-9][0-9]-*.md >/dev/null 2>&1; then
-    echo "work items that do exist:"
-    ls changes/[0-9][0-9][0-9]-*.md | sed 's/^/  /'
-  else
-    echo "(no work items yet - copy changes/template.md to start one)"
-  fi
-else
-  echo "path: $WORK_ITEM ($HOW)"
-  echo "--- contents ---"
-  cat "$WORK_ITEM"
-fi
-
-section "TASK STATUS"
-if [ -z "$WORK_ITEM" ]; then
-  echo "(no work item to roll up)"
-else
-  n_done=$(grep -cE '^\s*-?\s*\*\*Status\*\*:\s*Complete' "$WORK_ITEM" 2>/dev/null || true)
-  n_prog=$(grep -cE '^\s*-?\s*\*\*Status\*\*:\s*In Progress' "$WORK_ITEM" 2>/dev/null || true)
-  n_todo=$(grep -cE '^\s*-?\s*\*\*Status\*\*:\s*Not Started' "$WORK_ITEM" 2>/dev/null || true)
-  echo "Complete: ${n_done:-0}, In Progress: ${n_prog:-0}, Not Started: ${n_todo:-0}"
-  echo "--- tasks in file order ---"
-  awk '
-    /^#### / { task = $0; sub(/^#### /, "", task); next }
-    /\*\*Status\*\*:/ {
-      status = $0
-      sub(/^.*\*\*Status\*\*:[ \t]*/, "", status)
-      if (task != "") { printf "  %s -> %s\n", task, status; task = "" }
-    }
-  ' "$WORK_ITEM"
-  grep -qE '^#### ' "$WORK_ITEM" || echo "  (no '#### Task N' headings found)"
-fi
+wf_print_pointer
+wf_print_work_item "$WORK_ITEM_ARG"
+wf_print_task_status
+wf_print_working_tree
 
 # --- The change being landed ------------------------------------------------
 # Scoped to the project with `-- .` and --relative, so paths are
 # project-relative and unrelated repo changes do not pollute the report.
-section "WORKING TREE"
-# git status ignores --relative even with a pathspec, so strip the project
-# prefix by hand to keep every section's paths project-relative.
-PROJ_REL=$(git rev-parse --show-prefix 2>/dev/null)
-PORCELAIN=$(git status --porcelain --untracked-files=normal -- . 2>/dev/null |
-            sed "s|^\(...\)${PROJ_REL}|\1|")
-if [ -n "$PORCELAIN" ]; then
-  printf '%s\n' "$PORCELAIN"
-else
-  echo "(clean - nothing uncommitted in this project)"
-fi
-
-section "DIFF STAT"
+wf_section "DIFF STAT"
 d_work=$(git diff --stat --relative -- . 2>/dev/null)
 d_stage=$(git diff --cached --stat --relative -- . 2>/dev/null)
 if [ -z "$d_work" ] && [ -z "$d_stage" ]; then
@@ -268,8 +152,37 @@ CHANGED=$( { git diff --name-only --relative -- . 2>/dev/null
              git ls-files --others --exclude-standard -- . 2>/dev/null
            } | sed '/^$/d' | sort -u )
 
+# --- The diff itself: the evidence the acceptance verdicts rest on ---------
+# A stat line is a filename and a count; a Given-When-Then clause cannot be
+# judged from that. Bounded so a large change does not swamp the report - the
+# skill body says to read the full file when a truncation marker appears.
+wf_section "DIFF"
+if [ -z "$CHANGED" ]; then
+  echo "(no uncommitted changes)"
+else
+  diff_all=$( { git diff --cached --relative -- . 2>/dev/null
+                git diff --relative -- . 2>/dev/null
+              } )
+  untracked=$(git ls-files --others --exclude-standard -- . 2>/dev/null)
+  if [ -n "$untracked" ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      case "$f" in */bin/*|*/obj/*|*/node_modules/*|*.dll|*.exe|*.pdb|*.png|*.jpg|*.lock) continue ;; esac
+      diff_all="$diff_all"$'\n'"--- new file: $f ---"$'\n'"$(head -80 "$f" 2>/dev/null)"
+      lines=$(wc -l < "$f" 2>/dev/null | tr -d ' ')
+      [ "${lines:-0}" -gt 80 ] && diff_all="$diff_all"$'\n'"(new file truncated - $lines lines, showing the first 80)"
+    done <<< "$untracked"
+  fi
+  total=$(printf '%s\n' "$diff_all" | wc -l | tr -d ' ')
+  printf '%s\n' "$diff_all" | head -n "$DIFF_MAX_LINES"
+  if [ "$total" -gt "$DIFF_MAX_LINES" ]; then
+    echo "(diff truncated - $total lines, showing the first $DIFF_MAX_LINES;"
+    echo " read the remaining files directly before giving a verdict)"
+  fi
+fi
+
 # --- README review ----------------------------------------------------------
-section "README REVIEW"
+wf_section "README REVIEW"
 if [ -z "$CHANGED" ]; then
   echo "(no changed files to review)"
 else
@@ -289,12 +202,12 @@ else
 fi
 
 # --- Doc drift --------------------------------------------------------------
-section "DOC DRIFT"
+wf_section "DOC DRIFT"
 if [ -z "$CHANGED" ]; then
   echo "(no changed files)"
 else
   ctx_changed=$(printf '%s\n' "$CHANGED" | grep '^context/' || true)
-  src_changed=$(printf '%s\n' "$CHANGED" | grep -E '^(src|infra|ui)/' || true)
+  src_changed=$(printf '%s\n' "$CHANGED" | grep -E "$SOURCE_DIRS_RE" || true)
 
   echo "--- context docs changed ---"
   if [ -n "$ctx_changed" ]; then printf '%s\n' "$ctx_changed"; else echo "(none)"; fi
@@ -313,23 +226,22 @@ else
   fi
 
   echo "--- api surface ---"
-  api_changed=$(printf '%s\n' "$CHANGED" | grep -E '(Controllers|Models)/' || true)
+  api_changed=$(printf '%s\n' "$CHANGED" | grep -E "$API_SURFACE_RE" || true)
   if [ -n "$api_changed" ]; then
-    if printf '%s\n' "$CHANGED" | grep -qx 'openapi.json'; then
-      echo "controllers/models changed and openapi.json changed with them - ok"
+    if printf '%s\n' "$CHANGED" | grep -qx "$API_SPEC_FILE"; then
+      echo "api surface changed and $API_SPEC_FILE changed with it - ok"
     else
-      echo "FLAG: controllers/models changed but openapi.json did not."
-      echo "context/ENV_SCRIPTS.md: it goes stale silently - nothing checks it."
-      echo "Regenerate with the API running:"
-      echo "  curl http://localhost:5038/openapi/v1.json -o openapi.json"
+      echo "FLAG: api surface changed ($API_SURFACE_RE) but $API_SPEC_FILE did not."
+      echo "It goes stale silently - nothing checks it. Regenerate with:"
+      echo "  $API_SPEC_REGEN_HINT"
     fi
   else
-    echo "(no controller or model changes)"
+    echo "(no api surface changes)"
   fi
 fi
 
 # --- Stage sections still present -------------------------------------------
-section "STAGE SECTIONS"
+wf_section "STAGE SECTIONS"
 if [ -z "$WORK_ITEM" ]; then
   echo "(no work item to check)"
 else
@@ -343,7 +255,7 @@ else
 fi
 
 # --- Commit style sample ----------------------------------------------------
-section "COMMIT STYLE"
+wf_section "COMMIT STYLE"
 styles=$(git log -8 --format=%s 2>/dev/null)
 if [ -n "$styles" ]; then
   printf '%s\n' "$styles"

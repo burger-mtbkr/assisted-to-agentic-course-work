@@ -24,11 +24,17 @@ not find it, you do not claim it.
 
 ### Step 1 - Run the script and resolve what is actually in scope
 
-Run `script.sh` from the skill directory, before any other reasoning:
+Run this skill's `script.sh` before any other reasoning. The harness states
+this skill's base directory when it loads; use that absolute path, not a
+path relative to wherever the shell happens to be:
 
 ```bash
-bash .claude/skills/launch-work-item/script.sh
+bash "<this skill's base directory>/script.sh"
 ```
+
+The script finds the project on its own (it walks up from the working
+directory, then searches the repo), so the shell's location does not matter
+to it - only to finding the script.
 
 Pass `--work-item NNN` when the user named one, `--project-dir PATH` when
 the project is ambiguous, and `--with-check` only when the user explicitly
@@ -82,10 +88,12 @@ Markdown, these sections, in this order:
    task did not land cleanly - lead with that.
 3. **Scope** - files likely to be modified, files to read first, new files
    to create, each new one paired with the sibling file to mirror.
-4. **Watch out for** - dirty tree, open TODOs in files in scope, context
-   docs that look stale relative to the code, and anything the script could
-   not determine. State the unknowns explicitly; an omitted section reads
-   as "nothing to worry about", which is a different claim.
+4. **Watch out for** - the three findings that most change how the task
+   should be planned, ranked: a dirty tree, open TODOs in files in scope,
+   context docs that look stale relative to the code. Then one line for
+   anything the script could not determine. State the unknowns explicitly;
+   an omitted section reads as "nothing to worry about", which is a
+   different claim. Keep the rest for when the user asks.
 5. **First action** - one specific next step, and the PLAN-stage output it
    should produce (test strategy + file changes, per `changes/template.md`).
 

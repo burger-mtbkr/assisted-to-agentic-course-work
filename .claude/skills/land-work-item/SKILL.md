@@ -27,14 +27,23 @@ you hand over. You do not commit, and you do not declare the stage done.
 
 ### Step 1 - Establish the gate result before anything else
 
-Run the script first, before any reasoning:
+Run this skill's `script.sh` first, before any reasoning. The harness states
+this skill's base directory when it loads; use that absolute path, not a
+path relative to wherever the shell happens to be:
 
 ```bash
-bash .claude/skills/land-work-item/script.sh
+bash "<this skill's base directory>/script.sh"
 ```
 
 It runs the project's `check` script for real and can take several minutes.
-Pass `--skip-check` only if the user asks for it.
+Pass `--skip-check` only if the user asks for it. The script finds the
+project on its own, so the shell's location only matters for finding the
+script.
+
+The project-specific values (the process that locks the build, which paths
+count as API surface, where the API spec lives) are knobs at the top of
+`script.sh`, overridable via `LAND_*` environment variables. Everything else
+is generic to the `context/` + `changes/` framework.
 
 Read `=== BLOCKING PROCESSES ===` and then `=== QUALITY GATE ===` before
 anything else.
@@ -54,9 +63,18 @@ anything else.
 ### Step 2 - Judge the change against the acceptance criteria, clause by clause
 
 Take the active task's Given / When / Then. For **each clause**, point at
-the specific evidence in `=== DIFF STAT ===` and `=== WORKING TREE ===`
-that satisfies it - a file, a test name, an endpoint - and give a verdict:
-met, partially met, or **no evidence**. The absence has to be visible.
+the specific evidence in `=== DIFF ===` that satisfies it - a hunk, a test
+name, an endpoint - and give a verdict: met, partially met, or
+**no evidence**. The absence has to be visible.
+
+`=== DIFF STAT ===` tells you which files moved; it cannot tell you whether
+a clause is met. Read the hunks in `=== DIFF ===`. If it ends with a
+truncation marker, read the remaining changed files directly before giving
+any verdict - a verdict on a file you have not read is a guess.
+
+If `=== DIFF ===` is empty, there is nothing to judge: say so in one line
+and move on. Do not re-audit already-committed tasks against their
+criteria - that is a review, not a landing.
 
 `context/IMPLEMENTATION.md` is explicit that green tests are not the same
 as behaviour verified. Where a clause needs a live check against the

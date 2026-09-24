@@ -2,9 +2,9 @@
 
 **Module 4 exercise | Phase 2: Pair Agent | Option C (skill pair, 1 of 2)**
 
-Filled-in copy of `examples/SCRIPT_DESIGN_TEMPLATE.md`, for the skill
+Filled-in copy of `modules/assisted-to-agentic-module-4/examples/SCRIPT_DESIGN_TEMPLATE.md`, for the skill
 designed in
-[launch-work-item-SKILL-DESIGN.md](launch-work-item-SKILL-DESIGN.md).
+[DESIGN.md](DESIGN.md).
 
 ---
 
@@ -245,6 +245,7 @@ repo and show me the real output.
 - [x] Output section names match the ones `SKILL.md` tells the LLM to read
 - [x] Does not match the curriculum `examples/` trees under `modules/`
 - [x] `--with-check` runs `npm run check` and reports PASS/FAIL
+- [x] With `_lib/` absent, prints a clear error naming the missing path
 
 ---
 
@@ -264,3 +265,11 @@ repo and show me the real output.
   optional test run, which makes it idempotent - one of the module's
   stated quality heuristics - and safe for the Module 6 agent to invoke
   unattended.
+- **Resolution helpers are shared with `land-work-item` via
+  `.claude/skills/_lib/workflow.sh`.** The first version duplicated them
+  for self-containment; that lasted until the first bug had to be fixed
+  twice. See the landing script's design doc for the full reasoning.
+- **`SKILL.md` invokes the script by the skill's base directory, not a
+  repo-relative path.** The original `bash .claude/skills/launch-work-item/script.sh`
+  failed from inside `config-service/`. The harness announces the base
+  directory on every load, so that is what the body tells the model to use.

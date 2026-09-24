@@ -1,0 +1,37 @@
+{
+  "skill_name": "land-work-item",
+  "evals": [
+    {
+      "id": 1,
+      "name": "nothing-to-land",
+      "prompt": "I think we're done with the feature flags work item. Can you check whether it's ready to commit? I ran npm run check a minute ago and it was green, don't rerun it.",
+      "state": "Work item 001 complete on all tasks, already purged; clean tree.",
+      "expected_output": "Reports the gate as SKIPPED in plain terms (the landing is unverified), says there is nothing uncommitted to land and nothing to purge, does not draft a commit message for nothing, and does not invent work. Does not commit.",
+      "assertions": [
+        "States the quality gate was skipped and that the result is therefore unverified",
+        "States there are no uncommitted changes to land",
+        "States the work item has no STAGE sections left to purge",
+        "Does not draft a commit message for a non-existent change",
+        "Does not run npm run check",
+        "Does not commit or modify any file"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "in-flight-task-dirty-tree",
+      "prompt": "I've finished the cache invalidation task. Check it's ready to land - skip the check, it just passed.",
+      "state": "changes/002-config-caching.md exists (uncommitted) with Task 2 In Progress and STAGE 1/2 sections present; ConfigurationService.cs has an uncommitted edit adding an invalidation hook; no test change; no README change in the touched folder.",
+      "expected_output": "Gate SKIPPED reported loudly. Acceptance judged clause by clause from the diff hunks: the invalidation-on-write clause has partial evidence (code present, no test), stated as such. README review names the touched folders. Purge plan names STAGE 1 and STAGE 2 by heading. Commit message in 'Module N: ...' style, no conventional-commit prefix. Ends with a list of edits it is ready to make on confirmation. Does not commit, does not mark the task Complete.",
+      "assertions": [
+        "Reports the gate as SKIPPED / unverified",
+        "Gives a per-clause verdict for Given, When and Then with evidence from the diff, and marks the missing test as partial or no evidence rather than met",
+        "Names the exact STAGE headings to delete from changes/002-config-caching.md",
+        "Draft commit message uses the repo's plain style, not a feat:/fix: prefix",
+        "Does not commit, does not edit the work item, does not say the stage is complete",
+        "Ends with the edits it will make on the user's confirmation"
+      ],
+      "files": []
+    }
+  ]
+}

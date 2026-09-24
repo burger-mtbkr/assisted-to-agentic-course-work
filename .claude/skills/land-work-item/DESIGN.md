@@ -2,11 +2,11 @@
 
 **Module 4 exercise | Phase 2: Pair Agent | Option C (skill pair, 2 of 2)**
 
-Filled-in copy of `examples/SKILL_DESIGN_TEMPLATE.md`. The opening half of
+Filled-in copy of `modules/assisted-to-agentic-module-4/examples/SKILL_DESIGN_TEMPLATE.md`. The opening half of
 the pair is designed in
-[launch-work-item-SKILL-DESIGN.md](launch-work-item-SKILL-DESIGN.md);
+[../launch-work-item/DESIGN.md](../launch-work-item/DESIGN.md);
 this skill's grounding script in
-[land-work-item-SCRIPT-DESIGN.md](land-work-item-SCRIPT-DESIGN.md).
+[SCRIPT-DESIGN.md](SCRIPT-DESIGN.md).
 
 ---
 
@@ -143,6 +143,7 @@ are ready to make on their word.
 | Blocking dotnet process | `tasklist`/`ps` for `ConfigApi.Service` | Warning line, before the gate runs |
 | Quality gate | Run the project's `check` script, capture exit code and tail | PASS/FAIL + last 40 lines on failure |
 | Uncommitted change | `git status --porcelain`, `git diff --stat`, `git diff --cached --stat` | Porcelain + stat blocks |
+| The diff itself | `git diff` + `git diff --cached`, plus the head of each new file, capped at 400 lines | Unified diff, with a truncation marker when cut |
 | Touched folders | `dirname` roll-up over changed paths | Unique folder list |
 | README status per folder | `test -f <folder>/README.md` + membership in the changed set | `folder - README: yes/no, changed: yes/no` |
 | Context doc drift | Changed `context/*.md` vs changed source dirs | Two lists, for the LLM to correlate |
@@ -235,12 +236,21 @@ on a clean tree would be worse than useless inside the Module 6 agent.
   bypassed under time pressure. Building the gate into the skill is how the
   rule survives contact with a Module 6 agent that would otherwise happily
   commit.
-- **The `ConfigApi.Service` process check is repo-specific on purpose.**
-  It is the one piece of hard-coded local knowledge in the pair, and it
-  earns its place: `ENV_SCRIPTS.md` documents it as a Windows gotcha that
-  has actually bitten, and its failure mode (`MSB3027`) looks like a build
-  error, which is the worst kind of misleading evidence to hand a report
-  that leads with the gate.
+- **The project-specific knowledge is real, and it is kept in one place.**
+  The `ConfigApi.Service` process check earns its place: `ENV_SCRIPTS.md`
+  documents it as a Windows gotcha that has actually bitten, and its
+  failure mode (`MSB3027`) looks like a build error, which is the worst
+  kind of misleading evidence to hand a report that leads with the gate.
+  But it is not the only project-specific fact - the API-surface paths,
+  the spec file, the regen command and the source-dir pattern are too. All
+  of them sit as named knobs at the top of `script.sh`, each overridable
+  by a `LAND_*` environment variable, so the description's claim that the
+  skill works for any project on the framework is actually true.
+- **The acceptance verdicts rest on the diff, not the stat.** The first
+  version pointed the LLM at `=== DIFF STAT ===` for evidence. A stat line
+  cannot tell you whether "the cached entry is invalidated on delete" holds.
+  The script now includes the bounded diff, and the skill body says to read
+  any file the truncation cut before giving a verdict on it.
 - **Next iteration, if this gets used enough:** have the purge plan emit
   the resulting file rather than describing it, so confirming is one
   keystroke. Deliberately not in this version - "reports, does not write"

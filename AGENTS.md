@@ -39,12 +39,13 @@ silently untracked and lost on the next clone:
 
 - `prompts/` - numbered spec -> prompt -> plan artifacts, e.g.
   `1-web-api-specs.md`, `2-web-api-prompt.md`, `3-web-api-plan.md`. Only
-  when the module's exercise actually asks for prompts. Name the folder
-  after what the module asks for, don't force its artifacts into
-  `prompts/` because earlier modules used it - Module 4 asks for *design
-  docs*, so its artifacts live in `docs/` (`launch-work-item-SKILL-DESIGN.md`,
-  `launch-work-item-SCRIPT-DESIGN.md`, ...), matching the curriculum's own
-  `start-work-DESIGN.md` naming.
+  when the module's exercise actually asks for prompts; don't force a
+  module's artifacts into `prompts/` because earlier modules used it.
+  Module 4 asks for *skill design docs*, and those live with the skill
+  they describe (`.claude/skills/<name>/DESIGN.md` and `SCRIPT-DESIGN.md`)
+  rather than in the module folder - same reasoning as `config-service/`
+  living at the repo root: skills span modules (M4 builds them, M6 assembles
+  them), so their docs belong at the level they span.
 - `JOURNAL.md` - that module's collaboration journal
 - `INTEGRATE-REFLECTIONS.md` - answers to `project/INTEGRATE.md`'s
   reflection questions, one heading per question
@@ -94,7 +95,13 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
   delivery in any project following the `context/` + `changes/` workflow
   framework (currently `config-service/`). Both are read-only reporters -
   they never edit the work item, never commit, and never declare a stage
-  complete, because `context/WORKFLOW_STATUS.md` reserves that for the user:
+  complete, because `context/WORKFLOW_STATUS.md` reserves that for the user.
+  Each skill directory holds its `SKILL.md`, `script.sh`, and the design
+  docs it was built from (`DESIGN.md`, `SCRIPT-DESIGN.md`); the shared
+  resolution helpers live in `.claude/skills/_lib/workflow.sh` (not a
+  skill - no `SKILL.md`), and both scripts need it present. Project-specific
+  values are knobs at the top of `land-work-item/script.sh`, overridable via
+  `LAND_*` environment variables:
   - `launch-work-item` - before the PLAN stage. Resolves the workflow
     pointer to a work item, picks the task in flight, quotes its
     Given-When-Then verbatim, and produces a launch brief (in scope, where

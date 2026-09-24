@@ -65,6 +65,18 @@ commits on its own." That is there to set the expectation before the skill
 is invoked rather than after, since the most likely reason someone would
 hesitate to use it is fear of what it might do unasked.
 
+The eval loop (two prompts per skill, run with and without the skill,
+graded against written assertions - see `evals/results-iteration-1.md` in
+each skill directory) gave the sharper answer to "did it activate as
+expected". All four with-skill runs followed the skill from the first line
+without prompting, so the description did its job. What the evals also
+showed is that activation is not where the value is: the baselines, same
+model and no skill, found the same code facts. Where they lost points was
+process - paraphrasing acceptance criteria, accepting "it was green" as
+verification, writing the whole PLAN unasked, ending with git commands
+instead of a question. The skill's job turned out to be making the model
+stop at the right places, not making it see more.
+
 ## 3. Did your skill need a script? What did the script give you that the LLM alone couldn't?
 
 Yes, both, and the two cases are qualitatively different - which turned out

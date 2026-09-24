@@ -1,0 +1,36 @@
+{
+  "skill_name": "launch-work-item",
+  "evals": [
+    {
+      "id": 1,
+      "name": "no-active-task",
+      "prompt": "What's the next task to pick up in config-service?",
+      "state": "Work item 001 complete on all tasks; WORKFLOW_STATUS.md pointer says no current task; clean tree; no changes/002-*.md exists.",
+      "expected_output": "Says plainly there is no task to launch, cites the pointer and the 5/5 Complete roll-up, and gives one first action: create changes/002-<name>.md from changes/template.md. Does not invent a task, does not paraphrase acceptance criteria, does not claim the gate passed.",
+      "assertions": [
+        "States there is no active task to launch (all tasks Complete)",
+        "Names changes/template.md as the source for the next work item",
+        "Does not invent or propose a task as if it were already defined",
+        "Does not claim the test suite or quality gate passed",
+        "Says the working tree is clean, grounded in script output"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "in-flight-task-stale-pointer",
+      "prompt": "Let's plan task 2 of the config caching work item.",
+      "state": "changes/002-config-caching.md exists (uncommitted) with Task 1 Complete, Task 2 In Progress, Task 3 Not Started; WORKFLOW_STATUS.md still points at 001; ConfigurationService.cs has an uncommitted edit.",
+      "expected_output": "Quotes Task 2's Given/When/Then verbatim, reports that the pointer still says 001 (stale pointer is a finding), lists scope with specific sibling files to mirror from the Configurations slice, flags the dirty tree, gives a first action that produces the PLAN-stage output, and closes with the 'correct me before we plan' confirmation. Does not start planning, does not edit the work item.",
+      "assertions": [
+        "Quotes Task 2's Given, When and Then verbatim from the work item file",
+        "Reports that WORKFLOW_STATUS.md's pointer still references 001 and disagrees with the work item being planned",
+        "Names at least one specific existing file to mirror (e.g. Services/Configurations/ConfigurationService.cs), not just 'follow the pattern'",
+        "Flags the uncommitted change in the working tree",
+        "Ends by asking the user to confirm the in-scope file list before planning",
+        "Does not edit changes/002-config-caching.md or declare a stage complete"
+      ],
+      "files": []
+    }
+  ]
+}

@@ -40,8 +40,9 @@
     `npm run check` for real, rolls up touched folders against their READMEs,
     flags context-doc and `openapi.json` drift, finds the `### STAGE` sections
     to purge, and samples commit style. Reports and hands over; never commits.
-  - `modules/assisted-to-agentic-module-4/docs/` - the four filled-in design
-    docs (`*-SKILL-DESIGN.md`, `*-SCRIPT-DESIGN.md`).
+  - The four filled-in design docs, one `DESIGN.md` + `SCRIPT-DESIGN.md`
+    per skill. First written to `modules/assisted-to-agentic-module-4/docs/`;
+    moved next to their skills in `.claude/skills/<name>/` in Entry 2.
   - Verified live, not just by inspection: both skills invoked through the
     harness; the landing gate run for real against `config-service`
     (**PASS, 78s - 87 API tests, 5 UI tests, build clean**); the FAIL path
@@ -83,3 +84,67 @@
   state the repo is in. Both skills were designed so the empty case returns
   an explicit "there is nothing to launch / nothing to land, here is what to
   create next" rather than inventing work.
+
+## Entry 2: Review the pair, fix everything it found, run the eval loop
+
+- **Prompt**: "review the quality of this skill and where the most
+  appropriate place is for the docs it added to live", then "Fix it all",
+  then "you are mumbling on. just complete module 4!"
+- **Tool**: Claude Code (VS Code extension)
+- **Mode**: Direct execution. Review first (every finding verified by
+  running something, not by rereading), then the fixes, then the
+  `skill-creator` eval loop with subagents: two prompts per skill, each run
+  with and without the skill, graded by hand against written assertions.
+- **Context**: `.claude/skills/` (both skills, their scripts, design docs),
+  `config-service/` (the eval target, with a staged in-flight work item and
+  a deliberately half-built code change for the second pair of evals),
+  Module 4's own quality heuristics and anti-patterns list.
+- **Model**: Claude Fable 5.1 (`claude-fable-5-1`)
+- **Input**: The review found five things. (1) `SKILL.md` invoked the
+  script by a repo-relative path that fails from inside `config-service/`.
+  (2) `land-work-item`'s description claimed framework-generality while the
+  script hard-coded six config-service specifics inline. (3) The acceptance
+  section pointed the model at `git diff --stat`, which cannot support a
+  clause-by-clause verdict. (4) 133 lines duplicated between the two
+  scripts, defended in the design doc as self-containment, undermined the
+  first time one bug had to be fixed twice. (5) No evals. Plus the docs
+  question: they were in `modules/.../docs/`, but the skills span modules
+  (M4 builds, M6 assembles), so by the repo's own `config-service/` rule
+  the design docs belong with the skill.
+- **Output**: All five fixed and the docs moved. `.claude/skills/_lib/workflow.sh`
+  now holds the shared resolution helpers (no `SKILL.md`, so the harness
+  ignores it; each script prints a clear error naming the path if it is
+  missing). The six project specifics are named knobs at the top of
+  `land-work-item/script.sh`, each overridable via a `LAND_*` env var. A
+  bounded `=== DIFF ===` section (400 lines, truncation marker) feeds the
+  acceptance verdicts. Both `SKILL.md` files invoke the script by the
+  skill's base directory, which the harness announces on load. Design docs
+  live at `.claude/skills/<name>/DESIGN.md` and `SCRIPT-DESIGN.md`, updated
+  to say why each of those decisions changed. `evals/evals.json` and
+  `evals/results-iteration-1.md` per skill. Eval scores: launch 5/5 and
+  6/6 with the skill vs 4.5/5 and 4/6 without; land 6/6 and 6/6 vs 5/6 and
+  5/6. Tree restored and verified clean after every staged state.
+- **Cost**: Eight subagent runs at roughly 55-97k tokens each, about 600k
+  tokens for the eval loop, plus the review and fixes in the main session.
+  No dollar figure surfaced (subscription).
+- **Reflections**: The eval loop earned its cost by being humbling in a
+  specific way. Both baselines - same model, no skill - independently
+  found that the staged diff called an undeclared `_cache` field and that
+  the work item's "Task 1 Complete" had no code behind it. The model does
+  not need a skill to read code well. Where the baselines lost points was
+  entirely on process: paraphrasing the acceptance criteria instead of
+  quoting them, taking "it was green" as verification, writing the whole
+  PLAN section before the user had confirmed anything, ending with `git
+  stash` instructions instead of a question. Those are exactly the four
+  assertions a Module 6 agent would fail most expensively, and they are
+  what the skill body actually constrains. The lesson for what a skill is
+  *for*: not to make the model smarter about the codebase, but to make it
+  stop at the right places.
+
+  The second lesson was about my own design doc. It argued, with some
+  conviction, that duplicating 130 lines was the right call for
+  self-containment. It was wrong within the hour - the porcelain bug had to
+  be fixed in both files. A design doc that records a decision and its
+  reasoning is only useful if it also gets corrected when the reasoning
+  fails, which is why the "Notes and decisions" sections now say what
+  changed and why rather than pretending the first version was right.

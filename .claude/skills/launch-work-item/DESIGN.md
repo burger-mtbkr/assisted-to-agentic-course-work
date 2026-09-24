@@ -2,11 +2,11 @@
 
 **Module 4 exercise | Phase 2: Pair Agent | Option C (skill pair, 1 of 2)**
 
-Filled-in copy of `examples/SKILL_DESIGN_TEMPLATE.md`. The grounding script
+Filled-in copy of `modules/assisted-to-agentic-module-4/examples/SKILL_DESIGN_TEMPLATE.md`. The grounding script
 is designed in
-[launch-work-item-SCRIPT-DESIGN.md](launch-work-item-SCRIPT-DESIGN.md);
+[SCRIPT-DESIGN.md](SCRIPT-DESIGN.md);
 the paired closing skill in
-[land-work-item-SKILL-DESIGN.md](land-work-item-SKILL-DESIGN.md).
+[../land-work-item/DESIGN.md](../land-work-item/DESIGN.md).
 
 ---
 
