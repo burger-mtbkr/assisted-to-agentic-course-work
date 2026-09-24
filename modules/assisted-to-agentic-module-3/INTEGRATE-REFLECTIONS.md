@@ -1,5 +1,26 @@
 # Module 3 - Integrate & Reflect
 
+## Summary
+
+**What I did:** Added `ENV_SCRIPTS.md` (how to run everything) and
+`WORKFLOW_STATUS.md` (a four-stage PLAN -> BUILD & ASSESS -> REFLECT ->
+COMMIT process with a pointer to the active work item) to the .NET/DynamoDB
+config service, then delivered feature flags end to end through five tasks
+under that process.
+
+**How it went:** The process held. Every task went through all four
+stages, and the README-review step caught two real bugs in the docs and
+code that would otherwise have shipped. The pain was infrastructure, not
+code - a new DynamoDB table needed its own IAM grant, and proving the UI
+toggle worked meant a throwaway Playwright script.
+
+**What I learned:** The rule "only the user decides when a stage is done"
+was written down but never really tested - I let the assistant self-drive.
+Reading a rule is not the same as following it. Module 4 proved this:
+without a skill, the assistant wrote the whole plan unasked.
+
+---
+
 Answers to `project/INTEGRATE.md`'s four prompts, from building the
 procedural (`context/ENV_SCRIPTS.md`) and episodic (`context/WORKFLOW_STATUS.md`)
 memory layers on top of Module 2's context framework, then delivering

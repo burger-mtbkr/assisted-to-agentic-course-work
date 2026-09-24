@@ -1,5 +1,29 @@
 # Module 4 - Integrate & Reflect
 
+## Summary
+
+**What I did:** Built the `launch-work-item` / `land-work-item` pair
+(Option C) - one orients you on the task you are about to plan, the other
+runs the closing checklist (runs the quality gate for real, checks the
+diff against the acceptance criteria, lists READMEs and docs that drifted,
+names what to purge, drafts the commit). Design docs, scripts, and evals
+run with and without the skill.
+
+**How it went:** The first pass had real bugs the design doc could not
+see - the script produced a complete, confident, entirely empty report
+because of a path mismatch. Only running it found that. A review pass
+found five more issues (brittle invocation path, hard-coded project
+specifics, thin evidence for verdicts, 133 duplicated lines, no evals).
+Fixed all of them.
+
+**What I learned:** The skill does not make the model smarter about the
+code - the baselines found the same bugs. It makes the model stop at the
+right places: quote the criteria instead of paraphrasing, do not accept
+"it was green" as proof, ask before planning, hand over instead of
+committing. That is the part a Module 6 agent needs most.
+
+---
+
 Answers to `project/INTEGRATE.md`'s four prompts, from designing and
 authoring the `launch-work-item` / `land-work-item` skill pair (Option C)
 against `config-service/`.
