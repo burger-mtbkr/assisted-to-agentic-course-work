@@ -17,6 +17,20 @@ task"), so the mechanism a fresh session would need is in place and
 correct as of the last commit. The real test - opening a new conversation
 cold and asking "what's our status?" - is still outstanding.
 
+**Revisited after Module 4 (2026-09-24):** now tested, and it works. The
+Module 4 eval loop ran fresh subagents - empty context, nothing but the
+repo and one sentence - against exactly this question: "What's the next
+task to pick up in config-service?" Both the run with the
+`launch-work-item` skill and the run without it read
+`context/WORKFLOW_STATUS.md`'s Current Status, followed the pointer to
+`changes/001-feature-flags.md`, reported all five tasks Complete with no
+active task, and named `changes/template.md` as the next step. A second
+pair of runs against a staged, uncommitted `changes/002-*.md` with a task
+In Progress found the in-flight task, noticed the pointer was a work item
+behind, and said so. The M3 memory layers do carry state across an empty
+context window; the skill adds structure and a stop at the confirmation
+line, not the ability to pick up.
+
 ## 2. Were you able to get your assistant to behave properly during the transitions?
 
 Partially, and the gap is worth naming honestly rather than glossing over.
@@ -33,6 +47,19 @@ assistant execute the four stages correctly and thoroughly" rather than
 "does the assistant respect the human-in-the-loop gate the workflow
 document itself insists on." Those are different questions, and only the
 first one got a real answer here.
+
+**Revisited after Module 4 (2026-09-24):** the second question now has an
+answer, and it is "not on its own." In the Module 4 evals, the assistant
+without a skill, asked to "plan task 2", wrote the entire STAGE 1 PLAN
+section, recommended `git stash` commands, and ended on a first action -
+pre-empting a stage the user had not opened. Asked to check whether a task
+was "ready to land", it accepted "it was green" as verification. The runs
+with the `launch-work-item` / `land-work-item` skills stopped at the
+confirmation line, reported the gate as unverified, and listed the edits
+they were ready to make on the user's word. The transition rule in
+`WORKFLOW_STATUS.md` is real, but a rule the assistant reads is not the
+same as a process the assistant follows; the skills are what made it
+hold.
 
 ## 3. Did your assistant apply the workflow rules consistently - or only when you were working inside the workflow documents themselves?
 
