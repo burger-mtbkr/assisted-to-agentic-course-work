@@ -38,7 +38,13 @@ folder is git-ignored as curriculum material, so anything put there is
 silently untracked and lost on the next clone:
 
 - `prompts/` - numbered spec -> prompt -> plan artifacts, e.g.
-  `1-web-api-specs.md`, `2-web-api-prompt.md`, `3-web-api-plan.md`
+  `1-web-api-specs.md`, `2-web-api-prompt.md`, `3-web-api-plan.md`. Only
+  when the module's exercise actually asks for prompts. Name the folder
+  after what the module asks for, don't force its artifacts into
+  `prompts/` because earlier modules used it - Module 4 asks for *design
+  docs*, so its artifacts live in `docs/` (`launch-work-item-SKILL-DESIGN.md`,
+  `launch-work-item-SCRIPT-DESIGN.md`, ...), matching the curriculum's own
+  `start-work-DESIGN.md` naming.
 - `JOURNAL.md` - that module's collaboration journal
 - `INTEGRATE-REFLECTIONS.md` - answers to `project/INTEGRATE.md`'s
   reflection questions, one heading per question
@@ -84,6 +90,21 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
   summarize that week's instructions.
 - `/journal` - append an entry to the current module's `JOURNAL.md` using
   the template above.
+- Skills in `.claude/skills/`, built in Module 4, that bracket a unit of
+  delivery in any project following the `context/` + `changes/` workflow
+  framework (currently `config-service/`). Both are read-only reporters -
+  they never edit the work item, never commit, and never declare a stage
+  complete, because `context/WORKFLOW_STATUS.md` reserves that for the user:
+  - `launch-work-item` - before the PLAN stage. Resolves the workflow
+    pointer to a work item, picks the task in flight, quotes its
+    Given-When-Then verbatim, and produces a launch brief (in scope, where
+    the work stands, file scope, watch out for, first action). The quality
+    gate is opt-in (`--with-check`).
+  - `land-work-item` - when a task looks done. Runs `npm run check` for
+    real, judges the change clause by clause against its Given-When-Then,
+    rolls up touched folders against their READMEs, flags context-doc and
+    `openapi.json` drift, names the `### STAGE` sections to purge, and
+    drafts the commit message in this repo's style.
 - Persona subagents matching the course's Role + Action + Context model:
   `planner`, `architect`, `coder`, `reviewer`, `ui-designer`. Use them the
   way the course teaches roles - hand planning/design work to `planner` or
