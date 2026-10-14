@@ -112,6 +112,16 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
     rolls up touched folders against their READMEs, flags context-doc and
     `openapi.json` drift, names the `### STAGE` sections to purge, and
     drafts the commit message in this repo's style.
+- `domain-lang` MCP server (`domain-lang-mcp/`, built in Module 5),
+  registered at project scope in `.mcp.json`. Five read-only tools
+  (`lookup_term`, `get_related_terms`, `list_domain_areas`,
+  `validate_knowledge_graph`, `ping`) answering what a `config-service`
+  domain term means here and which files implement it. It wraps the
+  curriculum `knowledge-graph` CLI (git-ignored, Module 5 zip) over
+  repo-owned data in `config-service/knowledge/`: when a change renames or
+  moves something a node's `source_files` lists, update the YAML in the same
+  commit and re-import (`config-service/knowledge/README.md`). A fresh clone
+  must approve the project server once before Claude Code will start it.
 - Persona subagents matching the course's Role + Action + Context model:
   `planner`, `architect`, `coder`, `reviewer`, `ui-designer`. Use them the
   way the course teaches roles - hand planning/design work to `planner` or

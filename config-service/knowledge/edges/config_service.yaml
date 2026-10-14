@@ -1,0 +1,56 @@
+edges:
+  - from: application
+    to: configuration_item
+    relationship: owns
+
+  - from: application
+    to: feature_flag
+    relationship: owns
+
+  - from: application
+    to: error_response
+    relationship: delete_conflict_returns
+
+  - from: configuration_item
+    to: application
+    relationship: scoped_to
+
+  - from: configuration_item
+    to: feature_flag
+    relationship: not_equivalent_to
+
+  - from: configuration_item
+    to: scan_cache
+    relationship: read_through
+
+  - from: feature_flag
+    to: application
+    relationship: scoped_to
+
+  - from: feature_flag
+    to: flag_key
+    relationship: identified_by
+
+  - from: feature_flag
+    to: flag_consumption_pattern
+    relationship: consumed_via
+
+  - from: feature_flag
+    to: scan_cache
+    relationship: read_through
+
+  - from: feature_flag
+    to: configuration_item
+    relationship: not_equivalent_to
+
+  - from: admin_ui
+    to: application
+    relationship: manages
+
+  - from: admin_ui
+    to: feature_flag
+    relationship: toggles
+
+  - from: admin_ui
+    to: error_response
+    relationship: normalizes

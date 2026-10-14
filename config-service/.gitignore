@@ -1,3 +1,6 @@
 .env
 bin/
 obj/
+
+# Built from knowledge/*.yaml by `knowledge-graph import` - see knowledge/README.md
+knowledge/knowledge.db

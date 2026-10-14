@@ -1,0 +1,29 @@
+[project]
+name = "domain-lang-mcp"
+version = "0.1.0"
+description = "Stdio MCP server exposing config-service's domain language via the knowledge-graph CLI"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=2.3.0,<3",
+]
+
+[project.scripts]
+domain-lang-mcp = "domain_lang_mcp.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/domain_lang_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py"]
+asyncio_mode = "auto"

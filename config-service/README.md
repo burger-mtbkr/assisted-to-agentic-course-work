@@ -190,6 +190,8 @@ config-service/
 │                                     # context/WORKFLOW_STATUS.md
 ├── infra/
 │   └── ConfigApi.Provisioning/     # DynamoDB table provisioning (see infra/README.md)
+├── knowledge/                       # domain-language YAML served by the domain-lang
+│                                     # MCP server (see knowledge/README.md)
 ├── src/
 │   ├── ConfigApi.Service.sln
 │   ├── ConfigApi.Service/          # the API (Controllers -> Services -> Repositories)

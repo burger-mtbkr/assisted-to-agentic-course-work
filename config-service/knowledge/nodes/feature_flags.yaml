@@ -1,0 +1,69 @@
+nodes:
+  - id: feature_flag
+    type: domain_term
+    area: feature_flags
+    name: FeatureFlag
+    definition: >
+      A flagKey/enabled boolean pair (plus optional description) belonging to
+      exactly one Application, used to switch functionality on or off without
+      a redeploy. Same composite-key shape as a ConfigurationItem: the
+      `flags` DynamoDB table, partition key applicationId, sort key flagKey.
+    aliases:
+      - flag
+      - feature toggle
+      - toggle
+    warnings:
+      - Boolean only - there is no percentage rollout, audience targeting, or
+        per-environment value.
+      - A 404 for a flag means "not configured yet", which is not the same as
+        enabled false - see FlagConsumptionPattern.
+      - Do not use a flag for a value that is meant to stay set; that belongs
+        in a ConfigurationItem.
+    source_files:
+      - src/ConfigApi.Service/Models/Flags/Flag.cs
+      - src/ConfigApi.Service/Services/Flags/FlagService.cs
+      - src/ConfigApi.Service/Controllers/Flags/FlagsController.cs
+      - src/ConfigApi.Service/Repositories/Flags/FlagRepository.cs
+      - src/ConfigApi.Service/Exceptions/Flags/DuplicateFlagKeyException.cs
+    documentation:
+      - changes/001-feature-flags.md
+      - context/ARCHITECTURE.md
+      - README.md
+
+  - id: flag_key
+    type: domain_term
+    area: feature_flags
+    name: FlagKey
+    definition: >
+      The name of a feature flag, unique within its owning application and
+      used as the DynamoDB sort key. Creating a second flag with the same key
+      under one application returns 409 (DuplicateFlagKeyException).
+    aliases:
+      - flag name
+    source_files:
+      - src/ConfigApi.Service/Models/Flags/Flag.cs
+      - src/ConfigApi.Service/Exceptions/Flags/DuplicateFlagKeyException.cs
+    documentation:
+      - changes/001-feature-flags.md
+
+  - id: flag_consumption_pattern
+    type: domain_term
+    area: feature_flags
+    name: FlagConsumptionPattern
+    definition: >
+      The documented safe way for a consuming application to read a flag:
+      200 with enabled true is on, 200 with enabled false is deliberately
+      off, and 404 means the flag was never created and must resolve to the
+      caller's own default - not to false by convention.
+    aliases:
+      - consumption pattern
+      - safe read pattern
+      - consuming feature flags safely
+    warnings:
+      - Collapsing 404 and enabled false into one outcome is the most common
+        mistake; it turns "nobody has decided yet" into "explicitly off".
+      - There is no client-side caching contract and no push updates; a
+        caller on a hot path should add its own short-lived cache.
+    documentation:
+      - README.md
+      - changes/001-feature-flags.md

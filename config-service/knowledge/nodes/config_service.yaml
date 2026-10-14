@@ -1,0 +1,149 @@
+nodes:
+  - id: application
+    type: domain_term
+    area: config_service
+    name: Application
+    definition: >
+      A registered service or system that owns configuration entries and
+      feature flags. Identified by a generated id; its name must be unique
+      across all applications. Every ConfigurationItem and FeatureFlag
+      belongs to exactly one Application.
+    aliases:
+      - app
+      - registered application
+    warnings:
+      - Creating an application with a name that already exists returns
+        409 Conflict (DuplicateApplicationNameException).
+      - An application cannot be deleted while it still has configuration
+        entries or feature flags - DELETE returns 409 until both are removed.
+        That 409 is ASP.NET's default ProblemDetails shape, not the
+        ErrorMiddleware shape (see ErrorResponse).
+    source_files:
+      - src/ConfigApi.Service/Models/Applications/Application.cs
+      - src/ConfigApi.Service/Services/Applications/ApplicationService.cs
+      - src/ConfigApi.Service/Controllers/Applications/ApplicationsController.cs
+      - src/ConfigApi.Service/Repositories/Applications/ApplicationRepository.cs
+    documentation:
+      - context/ABOUT.md
+      - context/ARCHITECTURE.md
+
+  - id: configuration_item
+    type: domain_term
+    area: config_service
+    name: ConfigurationItem
+    definition: >
+      A configKey/value string pair belonging to exactly one Application - the
+      atomic unit of configuration in this service. configKey is unique
+      within its application. Stored in the `configurations` DynamoDB table
+      (partition key applicationId, sort key configKey).
+    aliases:
+      - configuration entry
+      - config entry
+      - config item
+      - configuration
+    warnings:
+      - In code the type is named `Configuration`, not ConfigurationItem -
+        search for Models/Configurations/Configuration.cs.
+      - There is one flat value per key - no versioning, rollback, or
+        per-environment values.
+      - Do not confuse with FeatureFlag - a configuration entry holds a
+        string value the application reads; a feature flag is a boolean
+        on/off switch with its own table and endpoints.
+      - There is no ConfigurationNotFoundException by design - a missing
+        entry is a null/false service result that the controller turns into
+        404.
+    source_files:
+      - src/ConfigApi.Service/Models/Configurations/Configuration.cs
+      - src/ConfigApi.Service/Services/Configurations/ConfigurationService.cs
+      - src/ConfigApi.Service/Controllers/Configurations/ConfigurationsController.cs
+      - src/ConfigApi.Service/Repositories/Configurations/ConfigurationRepository.cs
+    documentation:
+      - context/ABOUT.md
+      - context/ARCHITECTURE.md
+
+  - id: scan_cache
+    type: domain_term
+    area: config_service
+    name: ScanCache
+    definition: >
+      The server-side read path every table uses: a full DynamoDB table scan,
+      cached in memory for ScanCacheSeconds (300 by default) and invalidated
+      on every write made through the same service instance. There are no
+      indexed queries yet.
+    aliases:
+      - table cache
+      - scan-and-cache
+      - DynamoDbTableCache
+    warnings:
+      - The cache is per instance. A write invalidates only the instance that
+        handled it, so with more than one instance a read can be up to
+        ScanCacheSeconds stale.
+      - Fine at current scale; a large `configurations` table per application
+        would need a GSI/query-based read path instead.
+    source_files:
+      - src/ConfigApi.Service/Infrastructure/DynamoDb/DynamoDbTableCache.cs
+      - src/ConfigApi.Service/Infrastructure/DynamoDb/DynamoDbCollection.cs
+      - src/ConfigApi.Service/Infrastructure/DynamoDb/DynamoDbCompositeKeyCollection.cs
+      - src/ConfigApi.Service/appsettings.json
+    documentation:
+      - context/ARCHITECTURE.md
+
+  - id: error_response
+    type: domain_term
+    area: config_service
+    name: ErrorResponse
+    definition: >
+      The JSON body returned for a failed request. There are two shapes:
+      thrown domain exceptions are mapped centrally by ErrorMiddleware to
+      { status, title, detail, error, exceptionType, traceId }, while the
+      application delete-guard 409 is returned directly by the controller as
+      ASP.NET's default ProblemDetails { type, title, status, traceId }.
+    aliases:
+      - error shape
+      - problem details
+      - ErrorMiddleware
+    warnings:
+      - Clients must handle both shapes. The Admin UI's api.ts normalizes
+        them into one Error with a readable message - reuse that approach.
+    source_files:
+      - src/ConfigApi.Service/Middleware/ErrorMiddleware.cs
+      - src/ConfigApi.Service/Controllers/Applications/ApplicationsController.cs
+      - ui/src/api.ts
+    documentation:
+      - context/ARCHITECTURE.md
+
+  - id: health_status
+    type: domain_term
+    area: config_service
+    name: HealthStatus
+    definition: >
+      The dependency-free liveness signal at GET /health. It does not touch
+      DynamoDB, so a healthy response says the process is up, not that its
+      tables are reachable.
+    aliases:
+      - health
+      - health check
+    source_files:
+      - src/ConfigApi.Service/Controllers/Health/HealthController.cs
+    documentation:
+      - context/ARCHITECTURE.md
+
+  - id: admin_ui
+    type: domain_term
+    area: config_service
+    name: AdminUI
+    definition: >
+      The browser tool administrators use to manage applications,
+      configuration entries, and feature flags without hand-crafting API
+      calls. TypeScript + Vite, no framework, calling the API directly from
+      the browser (CORS allows http://localhost:5173 in Development only).
+    aliases:
+      - admin ui
+      - ui
+    source_files:
+      - ui/src/main.ts
+      - ui/src/api.ts
+      - src/ConfigApi.Service/Ignition/CorsIgnition.cs
+    documentation:
+      - context/ARCHITECTURE.md
+      - README.md
