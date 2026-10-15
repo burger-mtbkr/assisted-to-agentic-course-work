@@ -1,6 +1,6 @@
 ---
 name: launch-work-item
-description: Orient on the task you are about to start in a changes/NNN-*.md work item, before the PLAN stage. Use this whenever you are picking up a work item task, starting or resuming a task, asking which task is next, or about to plan or scope a change in a project that follows the context/ + changes/ workflow framework - even if the user does not say "work item". Produces a launch brief: the active task and its Given-When-Then, what has been built so far, the files in scope, and one specific first action.
+description: 'Orient on the task you are about to start in a changes/NNN-*.md work item, before the PLAN stage. Use this whenever you are picking up a work item task, starting or resuming a task, asking which task is next, or about to plan or scope a change in a project that follows the context/ + changes/ workflow framework - even if the user does not say "work item". Produces a launch brief: the active task and its Given-When-Then, what has been built so far, the files in scope, and one specific first action.'
 ---
 
 # Launch Work Item

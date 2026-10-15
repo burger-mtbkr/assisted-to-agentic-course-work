@@ -37,6 +37,7 @@ nodes:
       within its application. Stored in the `configurations` DynamoDB table
       (partition key applicationId, sort key configKey).
     aliases:
+      - configuration item
       - configuration entry
       - config entry
       - config item
@@ -71,6 +72,7 @@ nodes:
       on every write made through the same service instance. There are no
       indexed queries yet.
     aliases:
+      - scan cache
       - table cache
       - scan-and-cache
       - DynamoDbTableCache
@@ -99,6 +101,7 @@ nodes:
       application delete-guard 409 is returned directly by the controller as
       ASP.NET's default ProblemDetails { type, title, status, traceId }.
     aliases:
+      - error response
       - error shape
       - problem details
       - ErrorMiddleware
@@ -121,6 +124,7 @@ nodes:
       DynamoDB, so a healthy response says the process is up, not that its
       tables are reachable.
     aliases:
+      - health status
       - health
       - health check
     source_files:

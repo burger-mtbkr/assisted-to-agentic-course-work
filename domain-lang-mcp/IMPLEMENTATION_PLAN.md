@@ -44,7 +44,7 @@ protocol without a fake.
 `kg.py`:
 
 - `KgSettings.from_env()` - reads `KG_PROJECT_DIR` (required), `KG_DB`
-  (optional), `KG_TIMEOUT_SECONDS` (default 60; the first `uv run` may need
+  (required), `KG_TIMEOUT_SECONDS` (default 60; the first `uv run` may need
   to sync the CLI's environment). Relative paths resolve against the server
   process's working directory.
 - `run_cli(settings, *args) -> CliResult(returncode, stdout, stderr)` - the
@@ -52,7 +52,7 @@ protocol without a fake.
   `PYTHONIOENCODING=utf-8`, timeout. Raises `KgServiceError(reason, detail,
   fix)` for: directory missing / `uv` missing (`backend_unreachable`),
   timeout.
-- Pre-flight: `KG_PROJECT_DIR` unset -> `not_configured`; `KG_DB` set but
+- Pre-flight: `KG_PROJECT_DIR` or `KG_DB` unset -> `not_configured`; `KG_DB`
   file missing -> `knowledge_db_missing` (the CLI would otherwise create an
   empty db and answer `not_found` for everything).
 - `query_json(settings, command, *args)` - builds

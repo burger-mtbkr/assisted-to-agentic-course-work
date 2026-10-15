@@ -72,6 +72,7 @@ async def _spawn(settings: KgSettings, args: tuple[str, ...]) -> CliResult:
             "uv", "run", "--quiet", "knowledge-graph", *args,
             cwd=settings.project_dir,
             env=env,
+            stdin=asyncio.subprocess.DEVNULL,  # our own stdin is the JSON-RPC pipe
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -83,9 +84,12 @@ async def _spawn(settings: KgSettings, args: tuple[str, ...]) -> CliResult:
         ) from exc
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), settings.timeout_seconds)
-    except TimeoutError as exc:
-        proc.kill()
-        await proc.wait()
+    except BaseException as exc:  # timeout, or the request was cancelled: never leave the CLI running
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+        if not isinstance(exc, TimeoutError):
+            raise
         raise KgServiceError(
             "timeout",
             f"knowledge-graph {' '.join(args)} did not finish in {settings.timeout_seconds:g}s",
@@ -115,7 +119,15 @@ def _preflight(settings: KgSettings) -> None:
             "Module 5 curriculum zip (modules/assisted-to-agentic-module-5/examples/"
             "knowledge-graph), which is git-ignored - extract the zip on a fresh clone.",
         )
-    if settings.db is not None and not settings.db.is_file():
+    if settings.db is None:
+        raise KgServiceError(
+            "not_configured",
+            "KG_DB is not set",
+            "Set KG_DB to the knowledge database built from config-service/knowledge/ "
+            "(config-service/knowledge/knowledge.db). Without it the CLI silently creates an "
+            "empty database and every lookup returns not_found.",
+        )
+    if not settings.db.is_file():
         raise KgServiceError(
             "knowledge_db_missing",
             f"knowledge database not found: {settings.db}",

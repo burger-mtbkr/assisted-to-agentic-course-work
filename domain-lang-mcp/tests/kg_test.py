@@ -1,5 +1,6 @@
 """Error mapping in the subprocess wrapper, with an injected runner."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -32,11 +33,52 @@ async def test_options_precede_the_term_so_option_like_terms_are_looked_up(setti
     assert runner.calls == [("lookup", "--format", "json", "--db", str(settings.db), "--", "--help")]
 
 
-async def test_no_db_argument_when_kg_db_is_unset(tmp_path):
+async def test_unset_kg_db_is_not_configured_rather_than_silently_empty(tmp_path):
     settings = kg.KgSettings(project_dir=tmp_path, db=None, timeout_seconds=5)
     runner = fake_runner(0, "[]")
-    await kg.query_json(settings, "list-areas", runner=runner)
-    assert runner.calls == [("list-areas", "--format", "json")]
+    with pytest.raises(kg.KgServiceError) as err:
+        await kg.query_json(settings, "list-areas", runner=runner)
+    assert err.value.reason == "not_configured" and "KG_DB" in err.value.detail
+    assert runner.calls == []
+
+
+async def test_missing_uv_is_backend_unreachable(settings, monkeypatch):
+    async def no_uv(*args, **kwargs):
+        raise FileNotFoundError("uv")
+
+    monkeypatch.setattr(kg.asyncio, "create_subprocess_exec", no_uv)
+    with pytest.raises(kg.KgServiceError) as err:
+        await kg.query_json(settings, "list-areas")
+    assert err.value.reason == "backend_unreachable"
+
+
+async def test_slow_cli_times_out_and_is_killed(settings, monkeypatch):
+    class Hung:
+        returncode = None
+        killed = False
+
+        async def communicate(self):
+            await asyncio.sleep(10)
+
+        def kill(self):
+            self.killed = True
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    proc = Hung()
+
+    async def spawn(*args, **kwargs):
+        assert kwargs["stdin"] == asyncio.subprocess.DEVNULL
+        return proc
+
+    monkeypatch.setattr(kg.asyncio, "create_subprocess_exec", spawn)
+    fast = kg.KgSettings(project_dir=settings.project_dir, db=settings.db, timeout_seconds=0.05)
+    with pytest.raises(kg.KgServiceError) as err:
+        await kg.query_json(fast, "list-areas")
+    assert err.value.reason == "timeout"
+    assert proc.killed
 
 
 async def test_not_found_on_exit_1_is_a_normal_answer(settings):

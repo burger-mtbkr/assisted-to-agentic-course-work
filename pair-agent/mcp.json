@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "domain-lang": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--project", "domain-lang-mcp", "domain-lang-mcp"],
+      "cwd": "..",
+      "env": {
+        "KG_PROJECT_DIR": "modules/assisted-to-agentic-module-5/examples/knowledge-graph",
+        "KG_DB": "config-service/knowledge/knowledge.db"
+      }
+    }
+  }
+}

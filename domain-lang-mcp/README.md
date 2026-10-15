@@ -22,7 +22,7 @@ decisions: `DESIGN.md`. Build order: `IMPLEMENTATION_PLAN.md`.
 | Variable | Required | Meaning |
 |---|---|---|
 | `KG_PROJECT_DIR` | yes | The knowledge-graph CLI project (`modules/assisted-to-agentic-module-5/examples/knowledge-graph`) |
-| `KG_DB` | no | The SQLite db to query; defaults to the CLI's own `knowledge.db` (the curriculum's sample data) |
+| `KG_DB` | yes | The SQLite db built from `config-service/knowledge/` (`config-service/knowledge/knowledge.db`). Required because the CLI silently creates an empty db when pointed at a missing one |
 | `KG_TIMEOUT_SECONDS` | no | Per-call CLI timeout, default 60 |
 
 Relative paths resolve against the server's working directory - the repo
@@ -39,7 +39,7 @@ Needs the Module 5 curriculum zip extracted (the CLI lives in git-ignored
 From the repo root:
 
 ```bash
-uv run --project domain-lang-mcp pytest domain-lang-mcp    # 28 tests
+uv run --project domain-lang-mcp pytest domain-lang-mcp    # 30 tests
 npx @modelcontextprotocol/inspector \
   -e KG_PROJECT_DIR=modules/assisted-to-agentic-module-5/examples/knowledge-graph \
   -e KG_DB=config-service/knowledge/knowledge.db \

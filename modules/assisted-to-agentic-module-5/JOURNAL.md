@@ -43,7 +43,11 @@
     `source_files` path was checked to exist. The import and validate steps
     are documented in `knowledge/README.md`, and the built db is
     git-ignored.
-  - 28 tests: 13 for the wrapper with an injected runner, and 15 through
+  - A reviewer pass during Module 6 hardened three things: `KG_DB` is now
+    required (left unset, the CLI silently opened an empty database); the CLI
+    subprocess no longer inherits the server's stdin, which is the JSON-RPC
+    pipe; and it is killed on cancellation as well as on timeout.
+  - 30 tests: 15 for the wrapper with an injected runner, and 15 through
     the MCP protocol (in-memory `Client`) against the real CLI and a temp db
     imported from the repo YAML.
   - MCP Inspector (CLI mode) passed all nine exercise checks: `ping`, ping

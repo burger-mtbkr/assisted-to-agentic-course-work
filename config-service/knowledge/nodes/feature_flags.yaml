@@ -9,6 +9,7 @@ nodes:
       a redeploy. Same composite-key shape as a ConfigurationItem: the
       `flags` DynamoDB table, partition key applicationId, sort key flagKey.
     aliases:
+      - feature flag
       - flag
       - feature toggle
       - toggle
@@ -39,6 +40,7 @@ nodes:
       used as the DynamoDB sort key. Creating a second flag with the same key
       under one application returns 409 (DuplicateFlagKeyException).
     aliases:
+      - flag key
       - flag name
     source_files:
       - src/ConfigApi.Service/Models/Flags/Flag.cs
@@ -56,6 +58,7 @@ nodes:
       off, and 404 means the flag was never created and must resolve to the
       caller's own default - not to false by convention.
     aliases:
+      - flag consumption pattern
       - consumption pattern
       - safe read pattern
       - consuming feature flags safely

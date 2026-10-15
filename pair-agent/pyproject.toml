@@ -1,0 +1,32 @@
+[project]
+name = "pair-agent"
+version = "0.1.0"
+description = "Repo-anchored PAIR Agent harness for config-service (Module 6)"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28",
+    "mcp>=2.3.0,<3",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+pair-agent = "pair_agent.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pair_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py"]
+asyncio_mode = "auto"

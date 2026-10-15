@@ -122,6 +122,17 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
   moves something a node's `source_files` lists, update the YAML in the same
   commit and re-import (`config-service/knowledge/README.md`). A fresh clone
   must approve the project server once before Claude Code will start it.
+- `pair-agent/` (built in Module 6) - this repo's own agent harness:
+  `uv run --project pair-agent pair-agent`. Google Gemini (free-tier
+  `gemini-flash-latest`; `GEMINI_API_KEY` in the git-ignored
+  `pair-agent/.env`, never committed), the `.claude/skills/` skills with
+  progressive disclosure, and the `domain-lang` MCP via `pair-agent/mcp.json`.
+  Skill frontmatter must stay valid YAML (quote a `description` containing
+  `: `): Claude Code and `pair-agent` both tolerate an unquoted colon, but a
+  strict YAML parser in another harness rejects the whole skill.
+- Model providers: never call a paid AI or cloud API (or use credentials
+  found on the machine) without the user's explicit approval for that
+  provider. The PAIR Agent uses Gemini's free tier only.
 - Persona subagents matching the course's Role + Action + Context model:
   `planner`, `architect`, `coder`, `reviewer`, `ui-designer`. Use them the
   way the course teaches roles - hand planning/design work to `planner` or

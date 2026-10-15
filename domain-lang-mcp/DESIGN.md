@@ -154,18 +154,20 @@ not_found results. No input.
 | Not found | Term not in the graph | `{"error": "not_found", "term": ...}`, `isError: false` |
 | Service | Backend unreachable, missing db, CLI crash, non-JSON output, timeout | `{"error": "service_error", "reason": ..., "detail": ..., "fix": ...}`, `isError: true` |
 
-Service `reason` values: `not_configured` (`KG_PROJECT_DIR` unset),
+Service `reason` values: `not_configured` (`KG_PROJECT_DIR` or `KG_DB`
+unset),
 `backend_unreachable` (directory or `uv` missing), `knowledge_db_missing`,
 `cli_failed`, `malformed_output`, `timeout`. Every one carries a `fix`
 sentence the agent can relay instead of a stack trace.
 
-Two failure modes found by running the CLI before designing around it, and
-designed out here:
+Three failure modes found by running the CLI before designing around it,
+and designed out here:
 
 - **A missing `--db` is silent.** The CLI creates an empty database on the
   spot, so every lookup returns `not_found` and `validate` reports "valid".
-  The server checks the db file exists *before* calling the CLI and returns
-  `knowledge_db_missing` with the import command.
+  The server requires `KG_DB` and checks the file exists *before* calling
+  the CLI, returning `not_configured` / `knowledge_db_missing` with the
+  import command.
 - **Windows console encoding.** With output piped, Python on Windows encodes
   stdout as cp1252 and the CLI crashes on any non-ASCII character. The
   server runs the CLI with `PYTHONIOENCODING=utf-8` and decodes as UTF-8.
