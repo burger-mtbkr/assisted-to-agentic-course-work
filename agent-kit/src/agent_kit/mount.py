@@ -1,9 +1,10 @@
-"""What an agent may see of a codebase: the files git tracks or would track, and nothing else.
+"""What an agent may see of a codebase - the files git tracks or would track - and where it may write.
 
 A Deep Agents `FilesystemBackend` rooted at a codebase shows the model everything on
 disk: `.env` files holding real credentials, `node_modules`, `bin/` and `obj/`.
 `GitScopedBackend` narrows that to what a reviewer would see in a diff - tracked files
-plus untracked-but-not-ignored ones - and refuses every write.
+plus untracked-but-not-ignored ones - and refuses every write. `GrantedWriteBackend`
+adds writes to explicitly granted paths, for the one agent that edits (the Mechanic).
 
 A file is visible only by its own path: anything reached through a symlink or a
 Windows junction is not, so a link cannot smuggle an ignored or outside file in.
@@ -14,6 +15,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 
 from deepagents.backends import FilesystemBackend
@@ -253,3 +255,63 @@ class GitScopedBackend(FilesystemBackend):
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         return [FileUploadResponse(path=p, error="permission_denied") for p, _ in files]
+
+
+class GrantedWriteBackend(GitScopedBackend):
+    """A `GitScopedBackend` that may also write the granted paths - and nothing else.
+
+    A grant is a root-relative file, or a directory ending in `/`. A requested path is
+    resolved inside the root before it is compared, so `src/Api/../../.env`, a link, or a
+    case trick cannot stretch a grant. The root itself cannot be granted.
+    """
+
+    def __init__(self, root: str | Path, grants: Iterable[str]):
+        super().__init__(root)
+        cleaned = set()
+        for grant in grants:
+            rel = normalize(grant)
+            if not rel or ".." in rel.split("/"):
+                raise ValueError(f"Cannot grant {grant!r}: grants are files or directories inside the root.")
+            cleaned.add(rel + "/" if grant.replace("\\", "/").endswith("/") else rel)
+        self.grants = frozenset(cleaned)
+
+    def granted(self, path: str) -> bool:
+        try:
+            resolved = self._resolve_path(path)
+        except ValueError:
+            return False
+        rel = resolved.relative_to(self.cwd).as_posix()
+        if os.path.normcase(rel) != os.path.normcase(normalize(path)):
+            return False  # reached through a link
+        key = os.path.normcase(rel)
+        return any(
+            key == os.path.normcase(g) or (g.endswith("/") and key.startswith(os.path.normcase(g)))
+            for g in self.grants
+        )
+
+    def _refused(self, path: str) -> str:
+        granted = ", ".join(sorted(self.grants)) or "none"
+        return f"Refusing to modify {path}: not an approved path (approved: {granted})."
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        if not self.granted(file_path):
+            return WriteResult(error=self._refused(file_path))
+        return FilesystemBackend.write(self, file_path, content)
+
+    def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> EditResult:
+        if not self.granted(file_path):
+            return EditResult(error=self._refused(file_path))
+        return FilesystemBackend.edit(self, file_path, old_string, new_string, replace_all)
+
+    def delete(self, file_path: str) -> DeleteResult:
+        if not self.granted(file_path):
+            return DeleteResult(error=self._refused(file_path))
+        return FilesystemBackend.delete(self, file_path)
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        return [
+            FilesystemBackend.upload_files(self, [(p, data)])[0]
+            if self.granted(p)
+            else FileUploadResponse(path=p, error="permission_denied")
+            for p, data in files
+        ]

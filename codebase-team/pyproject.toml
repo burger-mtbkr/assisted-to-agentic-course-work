@@ -1,0 +1,44 @@
+[project]
+name = "codebase-team"
+version = "0.1.0"
+description = "Doctor, Librarian and Mechanic as a human-orchestrated repair workflow over config-service (Module 9)"
+requires-python = ">=3.13"
+dependencies = [
+    "agent-kit",
+    "doctor-agent",
+    "librarian-agent",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+codebase-team = "codebase_team.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "ruff>=0.14",
+]
+
+[tool.uv.sources]
+agent-kit = { path = "../agent-kit", editable = true }
+doctor-agent = { path = "../doctor-agent", editable = true }
+librarian-agent = { path = "../librarian-agent", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codebase_team"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from agent_kit.recording import compact
+from agent_kit.recording import OUTPUT_LIMIT, compact
 from langchain_core.tools import StructuredTool
 
 from doctor_agent.processes import ProcessTree
@@ -21,8 +21,13 @@ from doctor_agent.processes import ProcessTree
 DRAIN_SECONDS = 10  # after a kill, how long to wait for the last output
 
 
-def run_check(tool: str, check: str, command: str, cwd: Path, timeout_seconds: int) -> dict[str, Any]:
-    """Run one check command in `cwd` and return structured evidence; never raises."""
+def run_check(
+    tool: str, check: str, command: str, cwd: Path, timeout_seconds: int, output_limit: int = OUTPUT_LIMIT
+) -> dict[str, Any]:
+    """Run one check command in `cwd` and return structured evidence; never raises.
+
+    Output is compacted to `output_limit` characters for the model; a program parsing the
+    output (the Module 9 Doctor adapter) can ask for more."""
     started = time.perf_counter()
     result: dict[str, Any] = {"tool": tool, "check": check, "command": command, "cwd": str(cwd)}
 
@@ -46,15 +51,19 @@ def run_check(tool: str, check: str, command: str, cwd: Path, timeout_seconds: i
             stdout, stderr = "", ""
             error = f"Timed out after {timeout_seconds}s; some processes it started could not be stopped."
         return finish(
-            exit_code=None, passed=False, stdout=compact(stdout), stderr=compact(stderr), error=error
+            exit_code=None,
+            passed=False,
+            stdout=compact(stdout, output_limit),
+            stderr=compact(stderr, output_limit),
+            error=error,
         )
     finally:
         tree.close()
     return finish(
         exit_code=tree.process.returncode,
         passed=tree.process.returncode == 0,
-        stdout=compact(stdout),
-        stderr=compact(stderr),
+        stdout=compact(stdout, output_limit),
+        stderr=compact(stderr, output_limit),
     )
 
 

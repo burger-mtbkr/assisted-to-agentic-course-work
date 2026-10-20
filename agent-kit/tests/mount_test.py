@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from agent_kit.mount import GitScopedBackend, normalize, visible_files
+from agent_kit.mount import GitScopedBackend, GrantedWriteBackend, normalize, visible_files
 
 
 def git(cwd, *args):
@@ -196,3 +196,38 @@ def test_grep_line_numbers_agree_with_read_file_offsets(repo):
 )
 def test_normalize(raw, expected):
     assert normalize(raw) == expected
+
+
+def test_granted_files_and_directories_are_writable_and_nothing_else(repo):
+    backend = GrantedWriteBackend(repo, ["README.md", "src/Api/"])
+    assert backend.edit("/README.md", "Codebase", "Service").error is None
+    assert backend.write("/src/Api/New.cs", "class New {}\n").error is None
+    assert "not an approved path" in backend.write("/src/Other.cs", "x").error
+    assert "not an approved path" in backend.edit("/.gitignore", ".env", "").error
+    assert backend.upload_files([("/up.txt", b"x")])[0].error == "permission_denied"
+    assert (repo / "README.md").read_text(encoding="utf-8").startswith("# Service")
+    assert "class New" in backend.read("/src/Api/New.cs").file_data["content"]  # new files are visible
+
+
+@pytest.mark.parametrize(
+    "path", ["/src/Api/../../.env", "/src/Api/../../../outside.txt", "/SRC/API/../../.env"]
+)
+def test_a_grant_cannot_be_stretched_by_dot_dot(repo, path):
+    backend = GrantedWriteBackend(repo, ["src/Api/"])
+    assert backend.write(path, "x").error
+    assert (repo / ".env").read_text(encoding="utf-8") == "SECRET_NAME=hunter2\n"
+
+
+def test_a_grant_cannot_be_stretched_by_a_link(repo, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link(repo / "src" / "Api" / "away", outside)
+    backend = GrantedWriteBackend(repo, ["src/Api/"])
+    assert backend.write("/src/Api/away/planted.txt", "x").error
+    assert not (outside / "planted.txt").exists()
+
+
+@pytest.mark.parametrize("grant", ["/", "", "..", "src/../..", "./"])
+def test_the_root_and_paths_outside_it_cannot_be_granted(repo, grant):
+    with pytest.raises(ValueError, match="Cannot grant"):
+        GrantedWriteBackend(repo, [grant])
