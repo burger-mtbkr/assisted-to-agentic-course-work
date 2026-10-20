@@ -43,4 +43,6 @@ Medium:
 
 Low: memory dir may sit inside the codebase; note-id regex accepts a trailing newline; traceback in chat without a key; `google-genai` not declared; README and plan drift (85% floor, three minutes, batch of 100).
 
-Still to do: the live audit-logging supersede run (`gemma-4-26b-a4b-it`), the "main concepts" prompt, and the reflections file.
+Done since: the live audit-logging run on `gemma-4-26b-a4b-it`. It gave change context for a future Mechanic, remembered "raw values", superseded that with "hashes", and answered "what did we decide before?" by naming the current note and the superseded one. The model asked for confidence 1.0 both times; the store saved 0.7 with the source dated by the store, so the provenance rule held. It also passed `entities` that are not knowledge-graph term ids (review finding 5).
+
+Still to do: the "main concepts" prompt and the reflections file.
