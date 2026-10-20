@@ -130,9 +130,28 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
   Skill frontmatter must stay valid YAML (quote a `description` containing
   `: `): Claude Code and `pair-agent` both tolerate an unquoted colon, but a
   strict YAML parser in another harness rejects the whole skill.
+- Phase 3 specialists (Modules 7-9), each a LangChain Deep Agents app at the
+  repo root with its own `pyproject.toml`, git-ignored `.env` (the same
+  free-tier `GEMINI_API_KEY`) and git-ignored run artifacts:
+  - `agent-kit/` - the plumbing they share, so it exists once: the
+    git-scoped read-only codebase mount (no `.env`, no build output, no
+    links), Gemini wiring with retries, the per-agent `ToolSurface`, turn
+    recording to JSONL, the console, and a `ScriptedModel` for tests. A
+    specialist adds only its prompt, tools, skills and mounts. Do not use
+    Deep Agents' `register_harness_profile` to trim tools: its registry is
+    process-wide and unions exclusions across agents.
+  - `doctor-agent/` (Module 7) - `uv run --project doctor-agent doctor`:
+    diagnoses `config-service` with its own `npm run test` / `npm run lint`
+    as no-argument tools and the `triage-codebase-health` skill; never edits.
+- Gemini free tier is about 20 requests per model per day (reset midnight
+  Pacific), and an agent turn costs one request per tool round. Probe with
+  one-word prompts, and switch `GEMINI_MODEL` to another free model
+  (`gemini-flash-lite-latest`, `gemini-3.5-flash`, `gemini-3.1-flash-lite`,
+  `gemma-4-31b-it`) when one model's quota is spent.
 - Model providers: never call a paid AI or cloud API (or use credentials
   found on the machine) without the user's explicit approval for that
-  provider. The PAIR Agent uses Gemini's free tier only.
+  provider. The PAIR Agent and the Phase 3 specialists use Gemini's free tier
+  only.
 - Persona subagents matching the course's Role + Action + Context model:
   `planner`, `architect`, `coder`, `reviewer`, `ui-designer`. Use them the
   way the course teaches roles - hand planning/design work to `planner` or

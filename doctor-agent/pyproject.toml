@@ -1,0 +1,41 @@
+[project]
+name = "doctor-agent"
+version = "0.1.0"
+description = "The Doctor: a read-only codebase-health diagnostic agent for config-service (Module 7)"
+requires-python = ">=3.13"
+dependencies = [
+    "agent-kit",
+    "deepagents>=0.7.28",
+    "langchain-google-genai>=4.4",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+doctor = "doctor_agent.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "ruff>=0.14",
+]
+
+[tool.uv.sources]
+agent-kit = { path = "../agent-kit", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/doctor_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
