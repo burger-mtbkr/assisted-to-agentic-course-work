@@ -26,8 +26,8 @@ def test_a_note_round_trips_through_readable_markdown(notes, config):
     text = (config.notes_dir / f"{note.id}.md").read_text(encoding="utf-8")
     assert note.id == "2026-10-20-write-time-validation"
     assert text.startswith("---\nid: 2026-10-20-write-time-validation\n")
-    assert "## Decision\n\nConfig keys are validated when written." in text
-    assert "## Rationale\n\nCallers read config at startup" in text
+    assert "statement: Config keys are validated when written." in text  # the YAML is the note
+    assert "**Decision:** Config keys are validated when written." in text  # the body is for people
     assert notes.read(note.id) == note
     assert note.status == "current" and note.confidence == 0.8 and note.created == "2026-10-20T09:30:00+00:00"
 
@@ -100,3 +100,63 @@ def test_user_statements_are_dated_by_the_store_and_capped_in_confidence(notes):
 def test_a_source_in_the_codebase_lifts_the_cap(notes):
     note = remember(notes, sources=["src/Api/Services/ConfigurationService.cs", "user"], confidence=0.95)
     assert note.confidence == 0.95 and note.sources[-1] == "user, 2026-10-20"
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"title": "Ends in dashes ---"},
+        {"statement": "First line.\n---\nstatus: current\n## Rationale\nnot the rationale"},
+        {"rationale": "Uses --- and ## Decision freely.\n---\n"},
+    ],
+)
+def test_any_content_round_trips_without_becoming_structure(notes, fields):
+    note = remember(notes, **fields)
+    assert notes.read(note.id) == note
+
+
+@pytest.mark.parametrize(
+    "fields", [{"title": "two\nlines"}, {"sources": ["a.cs\n---"]}, {"entities": ["x\ry"]}]
+)
+def test_newlines_are_refused_where_they_could_forge_fields(notes, fields):
+    with pytest.raises(NoteError, match="single lines"):
+        remember(notes, **fields)
+
+
+def test_an_unreadable_file_is_reported_not_fatal(notes, config):
+    good = remember(notes)
+    (config.notes_dir / "2026-10-20-broken.md").write_text("no frontmatter here\n", encoding="utf-8")
+    found, unreadable = notes.scan()
+    assert [n.id for n in found] == [good.id] and unreadable == ["2026-10-20-broken.md"]
+
+
+def test_only_a_current_note_can_be_superseded(notes):
+    old = remember(notes, title="First")
+    remember(notes, title="Second", supersedes=[old.id])
+    with pytest.raises(NoteError, match="Only a current or uncertain note"):
+        remember(notes, title="Third", supersedes=[old.id])
+
+
+def test_a_file_named_like_user_is_not_a_user_statement(notes):
+    note = remember(notes, sources=["UserGuide.md", "/codebase/src/Api/App.cs"], confidence=0.9)
+    assert note.sources == ["UserGuide.md", "src/Api/App.cs"] and note.confidence == 0.9
+
+
+def test_an_unchecked_source_can_be_kept_from_lifting_the_cap(notes):
+    assert remember(notes, sources=["made/up/path.cs"], confidence=0.95, backed=False).confidence == 0.7
+
+
+def test_marking_changes_status_and_records_why(notes):
+    note = remember(notes)
+    marked = notes.mark(note.id, "uncertain", "the code no longer validates keys", now=MOMENT)
+    assert (
+        marked.status == "uncertain"
+        and "marked uncertain: the code no longer validates keys" in marked.rationale
+    )
+    assert notes.read(note.id).status == "uncertain"
+    with pytest.raises(NoteError, match="supersede it"):
+        notes.mark(note.id, "superseded", "no")
+    with pytest.raises(NoteError, match="Say why"):
+        notes.mark(note.id, "archived", " ")
+    with pytest.raises(NoteError, match="not a note id"):
+        notes.read(note.id + "\n")

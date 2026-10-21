@@ -5,7 +5,9 @@
     -> Mechanic.patch (only if approved) -> Doctor.verify -> Librarian.remember_repair (optional)
 
 Every specialist call is recorded with the workspace fingerprint before and after, so the
-evals can tell which step changed what.
+evals can tell which step changed what. A specialist that crashes is a failed step, not a
+crashed run, and the original codebase is re-fingerprinted after every step: if it changed,
+the run stops.
 """
 
 from __future__ import annotations
@@ -14,13 +16,17 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 
+from agent_kit.mount import canonical_grant
 from dotenv import dotenv_values
 
 from codebase_team.artifacts import (
     AgentRequest,
     AgentResult,
     ApprovalRecord,
+    Artifact,
+    ArtifactError,
     ContextBrief,
     DiagnosisReport,
     VerificationReport,
@@ -32,6 +38,31 @@ from codebase_team.trajectory import Trajectory
 from codebase_team.workspace import Run, create_run, fingerprint
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+A = TypeVar("A", bound=Artifact)
+
+
+class SourceChanged(Exception):
+    """The original codebase changed while the run was in progress."""
+
+
+def canonical_paths(workspace: Path, paths: list[str]) -> list[str]:
+    """Grants as the workspace spells them: an existing file, or an existing directory ending
+    in `/`. A grant for something that is not there is a typo, not a permission."""
+    root = workspace.resolve()
+    grants = []
+    for raw in paths:
+        rel = canonical_grant(raw).rstrip("/")
+        target = Path(os.path.realpath(root / rel))  # the on-disk spelling, case included
+        if not target.is_relative_to(root) or target == root:
+            raise ValueError(f"Cannot grant {raw!r}: it is not inside the workspace.")
+        spelled = target.relative_to(root).as_posix()
+        if target.is_file():
+            grants.append(spelled)
+        elif target.is_dir():
+            grants.append(spelled + "/")
+        else:
+            raise ValueError(f"Cannot grant {raw!r}: no such file or directory in the workspace.")
+    return list(dict.fromkeys(grants))
 
 
 @dataclass(frozen=True)
@@ -89,7 +120,12 @@ class Team:
             "specialist_request", agent=agent.name, request_type=request_type, instructions=instructions
         )
         before = fingerprint(run.workspace)
-        result = agent.handle(request)
+        try:
+            result = agent.handle(request)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            log.record("specialist_error", agent=agent.name, request_type=request_type, error=error)
+            result = AgentResult(agent.name, "failed", f"{agent.name} failed: {error}")
         log.record(
             "specialist_result",
             agent=agent.name,
@@ -101,7 +137,22 @@ class Team:
         )
         for artifact in result.artifacts:
             log.record("artifact_written", agent=agent.name, path=artifact)
+        meta = run.meta()
+        if fingerprint(Path(meta["source"])) != meta["source_fingerprint"]:
+            log.record("source_changed", agent=agent.name, request_type=request_type)
+            raise SourceChanged(f"the original codebase changed during {agent.name}.{request_type}")
         return result
+
+    def _handoff(self, run: Run, result: AgentResult, kind: type[A]) -> A | None:
+        """The artifact a step exists to produce - None, recorded, if the step did not produce
+        a valid one (an older file from an earlier attempt does not count)."""
+        try:
+            if result.status == "failed":
+                raise ArtifactError(result.summary)
+            return read_artifact(run.artifacts, kind)
+        except ArtifactError as exc:
+            self.trajectory(run).record("handoff_missing", artifact=kind.__name__, reason=str(exc))
+            return None
 
     # -- steps ------------------------------------------------------------------
 
@@ -110,20 +161,20 @@ class Team:
         self.trajectory(run).record("workflow_start", source=str(self.config.source), scenario=scenario)
         return run
 
-    def diagnose(self, run: Run) -> DiagnosisReport:
-        self._call(
+    def diagnose(self, run: Run) -> DiagnosisReport | None:
+        result = self._call(
             run, self.doctor, "diagnose", "Run the checks and diagnose the failure. Do not edit anything."
         )
-        return read_artifact(run.artifacts, DiagnosisReport)
+        return self._handoff(run, result, DiagnosisReport)
 
-    def brief(self, run: Run) -> ContextBrief:
-        self._call(
+    def brief(self, run: Run) -> ContextBrief | None:
+        result = self._call(
             run,
             self.librarian,
             "retrieve_context",
             "Using the DiagnosisReport, gather what a Mechanic needs for the smallest safe repair.",
         )
-        return read_artifact(run.artifacts, ContextBrief)
+        return self._handoff(run, result, ContextBrief)
 
     def propose(self, run: Run, brief: ContextBrief) -> ApprovalRecord:
         proposal = ApprovalRecord(
@@ -131,7 +182,7 @@ class Team:
             approved=False,
             approved_by="proposal",
             allowed_paths=brief.relevant_source_files,
-            allowed_commands=["service tests"],
+            allowed_commands=[],  # running the tests runs the Mechanic's code: the human opts in
             rationale="Proposed from the context brief's edit boundary; not approved until a human says so.",
         )
         write_artifact(run.artifacts, proposal)
@@ -147,6 +198,13 @@ class Team:
         approved: bool = True,
         by: str = "human",
     ) -> ApprovalRecord:
+        """Record the human decision. It must be made with the brief in hand, and every path
+        must name something in the workspace (raises ValueError otherwise)."""
+        try:
+            read_artifact(run.artifacts, ContextBrief)
+        except ArtifactError as exc:
+            raise ValueError(f"Nothing to approve yet: {exc}") from exc
+        paths = canonical_paths(run.workspace, paths) if approved else paths
         record = ApprovalRecord(run.task_id, approved, by, paths, commands, rationale)
         write_artifact(run.artifacts, record)
         self.trajectory(run).record(
@@ -172,10 +230,11 @@ class Team:
             log.record("patch_applied", files_changed=run.changed_files())
         return result
 
-    def verify(self, run: Run) -> VerificationReport:
-        self._call(run, self.doctor, "verify", "Re-run the checks against the patched workspace.")
-        report = read_artifact(run.artifacts, VerificationReport)
-        self.trajectory(run).record("verification_result", status=report.status, passed=report.passed)
+    def verify(self, run: Run) -> VerificationReport | None:
+        result = self._call(run, self.doctor, "verify", "Re-run the checks against the patched workspace.")
+        report = self._handoff(run, result, VerificationReport)
+        if report:
+            self.trajectory(run).record("verification_result", status=report.status, passed=report.passed)
         return report
 
     def remember(self, run: Run) -> AgentResult:
@@ -195,28 +254,43 @@ class Team:
 
     def to_gate(self, scenario: str | None = None) -> tuple[Run, str]:
         run = self.start(scenario)
+        try:
+            return run, self._to_gate(run)
+        except SourceChanged as exc:
+            return run, self.finish(run, "source_changed", f"Stopped: {exc}.")
+
+    def _to_gate(self, run: Run) -> str:
         diagnosis = self.diagnose(run)
+        if diagnosis is None:
+            return self.finish(run, "failed", "Stopped: the Doctor produced no diagnosis.")
         if diagnosis.status == "healthy":
-            return run, self.finish(run, "healthy", "Healthy: every check passed, nothing to repair.")
+            return self.finish(run, "healthy", "Healthy: every check passed, nothing to repair.")
         if diagnosis.status == "inconclusive":
-            return run, self.finish(
+            return self.finish(
                 run, "inconclusive", f"Stopped: the diagnosis is inconclusive. {diagnosis.observed_error}"
             )
         brief = self.brief(run)
+        if brief is None:
+            return self.finish(run, "failed", "Stopped: the Librarian produced no context brief.")
         proposal = self.propose(run, brief)
         self.trajectory(run).record("awaiting_approval")
-        return (
-            run,
-            f"Waiting for approval. Proposed boundary: {', '.join(proposal.allowed_paths) or '(none)'}",
-        )
+        return f"Waiting for approval. Proposed boundary: {', '.join(proposal.allowed_paths) or '(none)'}"
 
     def past_gate(self, run: Run, mechanic: str, remember: bool = False) -> str:
+        try:
+            return self._past_gate(run, mechanic, remember)
+        except SourceChanged as exc:
+            return self.finish(run, "source_changed", f"Not repaired: stopped, {exc}.")
+
+    def _past_gate(self, run: Run, mechanic: str, remember: bool) -> str:
         patched = self.patch(run, mechanic)
         if patched.status == "blocked":
             return self.finish(run, "blocked", f"Not repaired: {patched.summary}")
         if patched.status != "ok":
             return self.finish(run, "patch_failed", f"Not repaired: {patched.summary}")
         report = self.verify(run)
+        if report is None:
+            return self.finish(run, "inconclusive", "Not repaired: the Doctor produced no verification.")
         if report.status != "verified":
             return self.finish(
                 run, report.status, f"Not repaired: verification {report.status}. {report.recommendation}"

@@ -1,10 +1,12 @@
 """Curated indexing: which files, how they are chunked, which edges, and the embedding cache."""
 
+import sqlite3
+
 import pytest
 
 from librarian_agent.embeddings import HashingEmbedder
-from librarian_agent.indexer import build_index, chunk_lines, indexable, kind_of, tested_in_edges
-from librarian_agent.store import Edge, IndexUnavailable, MemoryIndex
+from librarian_agent.indexer import build_index, chunk_lines, index_note, indexable, kind_of, tested_in_edges
+from librarian_agent.store import Edge, EmbeddingCache, IndexUnavailable, MemoryIndex
 
 
 @pytest.mark.parametrize(
@@ -88,6 +90,10 @@ def test_a_different_embedder_cannot_query_the_index(index):
         MemoryIndex(index.db_path.with_name("none.db")).require("hashing-512")
 
 
+def cache(config):
+    return EmbeddingCache(config.cache_path)
+
+
 class CountingEmbedder(HashingEmbedder):
     def __init__(self):
         super().__init__()
@@ -100,10 +106,59 @@ class CountingEmbedder(HashingEmbedder):
 
 def test_rebuilding_reembeds_only_what_changed(config, notes, index):
     counting = CountingEmbedder()
-    build_index(config.codebase_path, config.knowledge_dir, notes, index, counting)
+    build_index(config.codebase_path, config.knowledge_dir, notes, index, counting, cache(config))
     assert counting.embedded == 0  # every chunk was already in the cache
     (config.codebase_path / "src/Api/Models/Flag.cs").write_text(
         "public class Flag { int X; }\n", encoding="utf-8"
     )
-    build_index(config.codebase_path, config.knowledge_dir, notes, index, counting)
+    build_index(config.codebase_path, config.knowledge_dir, notes, index, counting, cache(config))
     assert counting.embedded == 1
+
+
+class FailingEmbedder(HashingEmbedder):
+    """Embeds `allowed` batches, then fails like a spent daily quota."""
+
+    def __init__(self, allowed):
+        super().__init__()
+        self.allowed = allowed
+
+    def embed_documents(self, texts):
+        if self.allowed == 0:
+            raise RuntimeError("429 RESOURCE_EXHAUSTED PerDay")
+        self.allowed -= 1
+        return super().embed_documents(texts)
+
+
+def test_a_failed_build_keeps_the_previous_index_and_what_it_embedded(config, notes, index, monkeypatch):
+    monkeypatch.setattr("librarian_agent.embeddings.BATCH_SIZE", 2)
+    before = index.stats()
+    fresh = EmbeddingCache(config.cache_path.with_name("fresh.db"))
+    with pytest.raises(RuntimeError, match="PerDay"):
+        build_index(
+            config.codebase_path, config.knowledge_dir, notes, index, FailingEmbedder(allowed=1), fresh
+        )
+    assert index.stats() == before  # the previous index is untouched and still usable
+    index.require("hashing-512")
+    with sqlite3.connect(fresh.path) as db:
+        assert db.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 2  # the paid-for batch was kept
+
+
+def test_helpers_in_the_test_project_test_nothing():
+    paths = ["src/Api/GlobalUsings.Services.cs", "src/Api.UnitTests/GlobalUsings.Services.cs"]
+    assert tested_in_edges(paths) == []
+
+
+def test_notes_link_only_to_indexed_files_and_known_terms(config, notes, index):
+    note = notes.remember(
+        title="Errors",
+        statement="Duplicates are 409.",
+        rationale="Contract.",
+        sources=["src/Api/Middleware/ErrorMiddleware.cs", "user", "not/indexed.cs", "abc1234"],
+        entities=["error_response", "audit logging"],
+    )
+    index_note(note, index, HashingEmbedder(), cache(config))
+    edges = {(e.rel, e.dst) for e in index.edges_touching([f"note:{note.id}"])}
+    assert edges == {
+        ("explains", "file:src/Api/Middleware/ErrorMiddleware.cs"),
+        ("explains", "term:error_response"),
+    }

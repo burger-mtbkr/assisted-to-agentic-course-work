@@ -36,6 +36,10 @@ class LibrarianConfig:
         return self.memory_dir / "librarian.db"
 
     @property
+    def cache_path(self) -> Path:
+        return self.memory_dir / "embeddings.db"
+
+    @property
     def retrievals_dir(self) -> Path:
         return self.memory_dir / "retrievals"
 
@@ -65,10 +69,15 @@ class LibrarianConfig:
             raise ConfigError(
                 f"LIBRARIAN_EMBEDDINGS must be one of {', '.join(EMBEDDERS)}, not {embeddings!r}."
             )
+        memory_dir = path("LIBRARIAN_MEMORY_DIR", ".librarian-memory")
+        if memory_dir.is_relative_to(codebase):
+            raise ConfigError(
+                f"LIBRARIAN_MEMORY_DIR {memory_dir} is inside the codebase; the Librarian never writes there."
+            )
         return cls(
             codebase_path=codebase,
             knowledge_dir=path("LIBRARIAN_KNOWLEDGE_DIR", str(codebase / "knowledge")),
-            memory_dir=path("LIBRARIAN_MEMORY_DIR", ".librarian-memory"),
+            memory_dir=memory_dir,
             skills_dir=project_root / "skills",
             model=get("GEMINI_MODEL", "gemini-flash-latest"),
             api_key=get("GEMINI_API_KEY", ""),

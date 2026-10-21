@@ -10,12 +10,15 @@ from librarian_agent.indexer import index_note
 from librarian_agent.retrieval import (
     RELATIVE_FLOOR,
     SEMANTIC_K,
+    WEAK_EVIDENCE_SIGMAS,
+    _evidence_gaps,
     match_entities,
     recommend,
     retrieve_context,
     select_semantic,
+    strength,
 )
-from librarian_agent.store import Chunk, Edge
+from librarian_agent.store import Chunk, Edge, EmbeddingCache
 
 
 def retrieve(config, notes, index, query, **kwargs):
@@ -32,7 +35,7 @@ def retrieve(config, notes, index, query, **kwargs):
 
 def remember(notes, index, **fields):
     note = notes.remember(**fields)
-    index_note(note, index, HashingEmbedder())
+    index_note(note, index, HashingEmbedder(), EmbeddingCache(index.db_path.with_name("embeddings.db")))
     return note
 
 
@@ -167,3 +170,59 @@ def test_a_source_ranks_by_its_best_evidence_and_graph_reach_inherits_a_discount
     assert ranked["note:n"] == 0.8 and ranked["big.json"] == 0.7  # not 1.39: two weak chunks do not add up
     assert ranked["src/Middleware.cs"] == 0.72 and ranked["tests/MiddlewareTests.cs"] == 0.648
     assert list(ranked)[0] == "note:n"
+
+
+def test_a_superseded_note_is_not_reached_through_the_graph_either(config, notes, index):
+    old = remember(
+        notes,
+        index,
+        title="Duplicates return 400",
+        statement="Duplicate names return 400.",
+        rationale="Wrong.",
+        sources=["src/Api/Middleware/ErrorMiddleware.cs"],
+    )
+    new = remember(
+        notes,
+        index,
+        title="Duplicates return 409",
+        statement="Duplicate names return 409 Conflict.",
+        rationale="Contract.",
+        sources=["src/Api/Middleware/ErrorMiddleware.cs"],
+        supersedes=[old.id],
+    )
+    result = retrieve(config, notes, index, "What does ErrorMiddleware return for duplicate names?")
+    recommended = [c["source"] for c in result["recommended_context"]]
+    assert f"note:{old.id}" not in recommended and f"note:{old.id}" not in [
+        m["id"] for m in result["memories"]
+    ]
+    reached = [e for e in result["graph_expansion"] if f"note:{old.id}" in (e["src"], e["dst"])]
+    assert all(e["rel"] == "supersedes" and e["src"] == f"note:{new.id}" for e in reached)
+    assert any(f"supersedes note:{old.id}" in g for g in result["gaps"])
+
+
+def test_matched_terms_carry_their_definition_and_warnings(config, notes, index):
+    [term] = [h for h in retrieve(config, notes, index, "how do flags work?")["entity_hits"]]
+    assert term["id"] == "term:feature_flag" and "A boolean switch." in term["knowledge"]
+    assert term["source"] == "knowledge/nodes/terms.yaml"
+
+
+def corpus(top, rest, n=40):
+    return [(top, chunk("best"))] + [(rest + (i % 5) * 0.01, chunk(f"c{i}")) for i in range(n)]
+
+
+def test_the_corpus_floor_drops_chunks_no_better_than_typical():
+    kept, _ = select_semantic(corpus(0.9, 0.55))
+    assert [c.source for _, c in kept][0] == "best"
+    assert all(score > 0.57 for score, _ in kept)  # above mean + one standard deviation
+
+
+def test_a_best_hit_barely_above_the_corpus_is_reported_as_weak():
+    assert strength(corpus(0.9, 0.55)) > WEAK_EVIDENCE_SIGMAS
+    assert strength(corpus(0.6, 0.55)) < WEAK_EVIDENCE_SIGMAS
+    assert any(g.startswith("Weak evidence") for g in _evidence_gaps(corpus(0.6, 0.55), [], set()))
+    assert strength(corpus(0.9, 0.55, n=5)) is None  # too few chunks to judge
+
+
+def test_a_superseded_note_does_not_make_the_evidence_look_strong():
+    scored = [(0.9, chunk("note:old", "superseded"))] + corpus(0.6, 0.55)
+    assert strength(scored) < WEAK_EVIDENCE_SIGMAS

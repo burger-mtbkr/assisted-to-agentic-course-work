@@ -22,11 +22,16 @@ uv run --project librarian-agent librarian           # converse (or: chat --ask 
 uv run --project librarian-agent librarian retrieve "Why do duplicate names return 409?"
 uv run --project librarian-agent librarian inspect   # notes, index, staleness, retrievals, sessions
 uv run --project librarian-agent librarian inspect --note <id>
+uv run --project librarian-agent librarian inspect --retrieval latest   # one retrieval, readable
 ```
 
 Indexing with Gemini embeddings is paced to the free tier (100 embedded texts a
-minute), so a first build of `config-service` takes about three minutes.
-Vectors are cached by content hash, so rebuilds re-embed only what changed.
+minute, plus a per-minute token budget), so a first build of `config-service`
+takes about seven minutes.
+Vectors are cached by content hash in `embeddings.db`, saved batch by batch,
+so rebuilds re-embed only what changed (a rebuild with nothing new takes
+seconds) and an interrupted build keeps what it paid for. A build goes into a
+side file and replaces the index only when complete.
 `LIBRARIAN_EMBEDDINGS=hashing` uses the deterministic offline embedder instead.
 
 ## Memory model
@@ -46,10 +51,11 @@ but can be wrong; the index is derived and rebuildable (`librarian index`).
 
 | Tool | What it does |
 |---|---|
-| `retrieve_context` | the one context call: semantic hits (chunks and notes, at most 2 per source, within 85% of the best score), entity hits (knowledge-graph terms and aliases named in the question, files named as identifiers), one-hop graph expansion plus term -> file -> test, recommended context with reasons, and gaps. Superseded notes are left out and named in the gaps. Each call writes `retrievals/<time>-<query>.json`. |
-| `remember_decision` | writes `notes/<date>-<title>.md` (statement, rationale, sources, confidence, entities) and indexes it at once; `supersedes` marks older notes superseded |
+| `retrieve_context` | the one context call: semantic hits (chunks and notes, at most 2 per source, above both half the best score and the corpus mean plus one standard deviation), entity hits (knowledge-graph terms and aliases named in the question, files named as identifiers), one-hop graph expansion plus term -> file -> test, recommended context with reasons, and gaps. Superseded and archived notes are left out - of hits and of graph reach - and named in the gaps; a best hit under 3 standard deviations above the corpus is reported as weak evidence. Each call writes `retrievals/<time>-<query>.json`. |
+| `remember_decision` | writes `notes/<date>-<title>.md` (statement, rationale, sources, confidence, entities) and indexes it at once; `supersedes` marks older current notes superseded. The store dates user sources itself and caps confidence at 0.7 unless a source is a file the index holds or a commit. Only indexed files and known knowledge-graph terms become graph links |
+| `mark_memory_note` | marks a note uncertain, archived or current again, with the reason appended |
 | `list_memory_notes`, `read_memory_note` | browse notes by status |
-| `git_log`, `git_show`, `file_history` | read-only Git, scoped to the codebase; only commit hashes and in-codebase paths are accepted |
+| `git_log`, `git_show`, `file_history` | read-only Git, scoped to the codebase with literal pathspecs; `git_show` accepts only hashes that are commits |
 | `ls`, `read_file`, `glob`, `grep` | Deep Agents built-ins over `/codebase/` (git-visible files only, read-only) and `/skills/` |
 
 The relationship graph starts from the Module 5 knowledge graph

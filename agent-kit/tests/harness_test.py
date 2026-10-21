@@ -12,6 +12,9 @@ from langchain_google_genai.chat_models import GoogleAPIError, GoogleRateLimitEr
 from recording_test import read_jsonl
 
 from agent_kit.harness import (
+    FINAL_ROUND,
+    STOPPED,
+    RoundBudget,
     Session,
     assemble,
     result_fields,
@@ -250,3 +253,50 @@ def test_result_fields_pick_check_outcomes_out_of_json():
         "exit_code": 0,
     }
     assert result_fields("not json") == {} and result_fields("[1]") == {}
+
+
+def test_a_turn_ends_within_its_round_budget_with_an_answer(workspace, tmp_path):
+    root, skills = workspace
+    model = ScriptedModel(
+        replies=[
+            calls(call("ls", "a", path="/codebase/")),
+            calls(call("ls", "b", path="/codebase/")),
+            # Like Gemini, the model tries to keep going on its last allowed call.
+            AIMessage(content="What I found so far.", tool_calls=[call("ls", "c", path="/codebase/")]),
+        ]
+    )
+    graph = assemble(
+        model,
+        system_prompt="Explore.",
+        tools=[],
+        routes={"/codebase/": GitScopedBackend(root)},
+        excluded_tools=EXCLUDED,
+        permissions=[],
+        rounds=3,
+    )
+    session = Session(graph, RunRecorder(tmp_path / "runs"))
+    assert session.ask("look") == "What I found so far."
+    assert model.replies == []  # no fourth call was made
+    assert model.tool_choices == [None, None, "none"]
+    assert FINAL_ROUND.strip() in text_of(model.seen[-1][0].content)
+    assert FINAL_ROUND.strip() not in text_of(model.seen[0][0].content)
+
+
+def test_a_final_reply_with_only_a_tool_call_becomes_a_clear_stop(workspace, tmp_path):
+    root, skills = workspace
+    model = ScriptedModel(replies=[calls(call("ls", "a", path="/")), calls(call("ls", "b", path="/"))])
+    graph = assemble(
+        model,
+        system_prompt="Explore.",
+        tools=[],
+        routes={"/codebase/": GitScopedBackend(root)},
+        excluded_tools=EXCLUDED,
+        permissions=[],
+        rounds=2,
+    )
+    assert Session(graph, RunRecorder(tmp_path / "runs")).ask("look") == STOPPED
+
+
+def test_a_budget_below_one_round_is_refused():
+    with pytest.raises(ValueError, match="at least one model call"):
+        RoundBudget(0)

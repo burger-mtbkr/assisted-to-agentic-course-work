@@ -143,6 +143,24 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
   - `doctor-agent/` (Module 7) - `uv run --project doctor-agent doctor`:
     diagnoses `config-service` with its own `npm run test` / `npm run lint`
     as no-argument tools and the `triage-codebase-health` skill; never edits.
+  - `librarian-agent/` (Module 8) - `uv run --project librarian-agent
+    librarian` (`seed`, `index`, `retrieve`, `inspect`, chat): durable
+    decision notes, a rebuildable SQLite index with Gemini embeddings and a
+    relationship graph seeded from `config-service/knowledge/`, Git as
+    episodic memory, one hybrid `retrieve_context` call. Writes only to its
+    git-ignored `.librarian-memory/`. Rules about memory (dated user sources,
+    capped confidence, supersession, links only to indexed files) live in the
+    store, not in prompts.
+  - `codebase-team/` (Module 9) - `uv run codebase-team run|approve|continue|
+    evals|inspect`: Doctor -> Librarian -> human approval -> Mechanic ->
+    Doctor over a copy of `config-service`; the Mechanic writes only the
+    approved paths and runs the tests only with `--allow-tests`; a crashed
+    step is reverted and recorded; 23 coordination evals on a full run. `--scenario
+    duplicate-name-status` seeds a regression into the copy, never the
+    original.
+  - Every specialist answers within a per-turn budget (`agent-kit`'s
+    `RoundBudget`, 12 model calls). Gemini ignores `tool_choice="none"`, so
+    a final round is enforced on the reply, not requested.
 - Gemini free tier is about 20 requests per model per day (reset midnight
   Pacific), and an agent turn costs one request per tool round. Probe with
   one-word prompts, and switch `GEMINI_MODEL` to another free model

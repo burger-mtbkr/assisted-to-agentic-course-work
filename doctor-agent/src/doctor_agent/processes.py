@@ -15,13 +15,61 @@ import subprocess
 from pathlib import Path
 
 CREATE_SUSPENDED = 0x00000004
-# The model's key must not reach the codebase's own scripts, even if it is exported.
-WITHHELD_ENV = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+# A check runs the codebase's own code - which an agent may have just edited - so it gets
+# only what the toolchains (npm, dotnet, uv) need to run: no API keys, no cloud
+# credentials, no tokens. Names are matched case-insensitively; a trailing * is a prefix.
+ALLOWED_ENV = (
+    "PATH",
+    "PATHEXT",
+    "SYSTEMROOT",
+    "SYSTEMDRIVE",
+    "WINDIR",
+    "COMSPEC",
+    "OS",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "USERPROFILE",
+    "USERNAME",
+    "USER",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PROGRAMDATA",
+    "PROGRAMFILES",
+    "PROGRAMFILES(X86)",
+    "PROGRAMW6432",
+    "COMMONPROGRAMFILES",
+    "NUMBER_OF_PROCESSORS",
+    "PROCESSOR_*",
+    "LANG",
+    "LC_*",
+    "TERM",
+    "DOTNET_*",
+    "NUGET_*",
+    "MSBUILD*",
+    "NODE_*",
+    "NPM_CONFIG_*",
+    "NVM_*",
+    "UV_*",
+    "PYTHON*",
+    "VIRTUAL_ENV",
+)
+
+
+def check_environment(source: dict[str, str]) -> dict[str, str]:
+    def allowed(name: str) -> bool:
+        upper = name.upper()
+        return any(upper.startswith(a[:-1]) if a.endswith("*") else upper == a for a in ALLOWED_ENV)
+
+    return {name: value for name, value in source.items() if allowed(name)}
 
 
 class ProcessTree:
     def __init__(self, command: str, cwd: Path):
-        env = {k: v for k, v in os.environ.items() if k not in WITHHELD_ENV}
+        env = check_environment(dict(os.environ))
         windows = os.name == "nt"
         self.process = subprocess.Popen(
             command,

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_kit.harness import Session, assemble
-from agent_kit.mount import GrantedWriteBackend, normalize
+from agent_kit.mount import GrantedWriteBackend, canonical_grant, grant_covers, normalize
 from agent_kit.recording import RunRecorder, compact
 from deepagents import FilesystemPermission
 from deepagents.backends import FilesystemBackend
@@ -59,23 +59,42 @@ class Blocked(Exception):
     """The approval gate is closed."""
 
 
-def approval_gate(artifacts: Path) -> ApprovalRecord:
-    """The approval, if there is a valid one that says yes. Fails closed."""
+def approval_gate(task_id: str, artifacts: Path) -> ApprovalRecord:
+    """The approval, if a valid one for this task says yes and the handoffs it was given are
+    there. Fails closed."""
     try:
         approval = read_artifact(artifacts, ApprovalRecord)
     except ArtifactError as exc:
         raise Blocked(f"no usable approval: {exc}") from exc
-    if not approval.approved:
+    if approval.task_id != task_id:
+        raise Blocked(f"the approval is for {approval.task_id}, not {task_id}")
+    if not approval.approved or approval.approved_by == "proposal":
         raise Blocked(f"approval is not granted ({approval.approved_by}: {approval.rationale})")
+    try:
+        for kind in (DiagnosisReport, ContextBrief):
+            read_artifact(artifacts, kind)
+    except ArtifactError as exc:
+        raise Blocked(f"nothing valid to repair against: {exc}") from exc
+    for grant in approval.allowed_paths:
+        try:
+            canonical = canonical_grant(grant)
+        except ValueError as exc:
+            raise Blocked(str(exc)) from exc
+        if canonical != grant:
+            raise Blocked(f"grant {grant!r} is not in canonical form; record it with `codebase-team approve`")
     return approval
 
 
-def allowed(path: str, approval: ApprovalRecord) -> bool:
-    for grant in approval.allowed_paths:
-        rel = normalize(grant)
-        if path == rel or (grant.endswith("/") and path.startswith(rel + "/")):
-            return True
-    return False
+def abandon(run: Run, error: Exception) -> AgentResult:
+    """A repair that failed part-way leaves nothing behind: every change is reverted."""
+    changed = run.changed_files()
+    run.revert(changed)
+    return AgentResult(
+        "Mechanic",
+        "failed",
+        f"The repair failed ({type(error).__name__}: {error}); reverted {', '.join(changed) or 'nothing'}.",
+        next_actions=["Human: read the error, then re-run or repair by hand."],
+    )
 
 
 def parse_report(text: str) -> dict[str, Any]:
@@ -104,7 +123,7 @@ def finish_patch(
 ) -> AgentResult:
     """Measure the change, revert what is out of bounds, and write the PatchSummary."""
     changed = run.changed_files()
-    outside = [path for path in changed if not allowed(path, approval)]
+    outside = [path for path in changed if not grant_covers(approval.allowed_paths, run.workspace, path)]
     risks = list(report.get("risks", []))
     if outside:
         run.revert(outside)
@@ -202,9 +221,16 @@ class AgentMechanic:
     def handle(self, request: AgentRequest) -> AgentResult:
         run = Run(request.task_id, Path(request.inputs["run"]))
         try:
-            approval = approval_gate(run.artifacts)
+            approval = approval_gate(request.task_id, run.artifacts)
         except Blocked as exc:
             return AgentResult(self.name, "blocked", f"Refused to patch: {exc}")
+        try:
+            text = self._repair(run, approval, request.instructions)
+        except Exception as exc:  # a crashed or stopped model: no half-made edit survives it
+            return abandon(run, exc)
+        return finish_patch(request.task_id, run, approval, self.mode, parse_report(text))
+
+    def _repair(self, run: Run, approval: ApprovalRecord, instructions: str) -> str:
         checks = DiagnosticTools(run.workspace, self.test_command, self.lint_command, self.timeout_seconds)
         tools = [t for t in checks.as_langchain_tools() if t.name == "run_tests"]
         graph = assemble(
@@ -228,13 +254,9 @@ class AgentMechanic:
             ],
         )
         self.session = Session(graph, RunRecorder(run.mechanic_dir))
-        text = self.session.ask(
-            "Repair this failure. The handoffs:\n\n"
-            + _handoffs(run.artifacts)
-            + "\n\n"
-            + request.instructions
+        return self.session.ask(
+            "Repair this failure. The handoffs:\n\n" + _handoffs(run.artifacts) + "\n\n" + instructions
         )
-        return finish_patch(request.task_id, run, approval, self.mode, parse_report(text))
 
 
 class HumanMechanic:
@@ -249,12 +271,15 @@ class HumanMechanic:
     def handle(self, request: AgentRequest) -> AgentResult:
         run = Run(request.task_id, Path(request.inputs["run"]))
         try:
-            approval = approval_gate(run.artifacts)
+            approval = approval_gate(request.task_id, run.artifacts)
         except Blocked as exc:
             return AgentResult(self.name, "blocked", f"Refused to patch: {exc}")
         print(f"\nHandoffs for {request.task_id}:\n{_handoffs(run.artifacts)}\n")
         print(f"Edit only {', '.join(approval.allowed_paths)} under {run.workspace}")
-        intent = self.ask("When you are done, describe the change in one sentence: ").strip()
+        try:
+            intent = self.ask("When you are done, describe the change in one sentence: ").strip()
+        except Exception as exc:
+            return abandon(run, exc)
         return finish_patch(
             request.task_id,
             run,

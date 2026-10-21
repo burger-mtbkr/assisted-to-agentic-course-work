@@ -1,23 +1,97 @@
 # Module 9 Journal
 
-## Entry 1: Codebase Team, first vertical slice (in progress)
+## Entry 1: The Codebase Team - contracts, an approval gate, a live repair
 
-- **Prompt**: "do 7 - 9 ..." (same session as Modules 7 and 8)
+- **Prompt**: "do 7 - 9 ..." then "continue" (next day)
 - **Tool**: Claude Code (VS Code extension)
-- **Mode**: Direct execution; plan first (`codebase-team/IMPLEMENTATION_PLAN.md`)
-- **Context**: `modules/assisted-to-agentic-module-9/project/` (DESIGN, PLAN, STEPS, EXERCISE, HANDOFF-TEMPLATES), `doctor-agent/`, `librarian-agent/`, `agent-kit/`
-- **Model**: Claude Opus 5.5 building; the Mechanic is not yet run live
-- **Input**:
-  - Doctor and Librarian are adapters over their Module 7 and 8 capabilities. The Mechanic is a Deep Agents agent with write grants only on approved paths, plus a human-assisted alternative behind the same port.
-  - The scenario `duplicate-name-status` seeds a regression into the run's copy of `config-service`, never the original: `ErrorMiddleware` returns 400 instead of 409 for a duplicate application name.
-- **Output so far**:
-  - `agent-kit`: `GrantedWriteBackend`. A grant is checked on the resolved path, so `..`, links and case tricks cannot stretch it, and the root cannot be granted (53 tests).
-  - `codebase-team/`: artifacts with validation, port, workspace (copy + git baseline + fingerprints), scenario, trajectory, Doctor / Librarian / Mechanic adapters, orchestrator with an approval gate, evals, inspect, CLI.
-  - Live safe-path run (`task-20261020-030800-8124`):
-    - The Doctor named `ErrorMiddlewareTests.DuplicateApplicationNameException_MapsTo409` (Expected 409, Actual 400) and quoted the test and the `catch` block.
-    - The Librarian brought the 409 decision note and the knowledge-graph warning, and bounded the edit to `ErrorMiddleware.cs` with the test read-only.
-    - The run stopped at the approval gate.
-- **Still to do**:
-  - Tests for `codebase-team` (none yet), including the negative eval cases.
-  - The blocked-without-approval run, then an approved Mechanic run, then verification, evals, and repair memory.
-  - A reviewer pass, README, reflections, and the `AGENTS.md` entries for `librarian-agent` and `codebase-team`.
+- **Mode**: Direct execution. Plan first
+  (`codebase-team/IMPLEMENTATION_PLAN.md`, Milestone 0), then milestones 1-10.
+  Deterministic tests before any live run.
+- **Context**: `modules/assisted-to-agentic-module-9/project/` (DESIGN,
+  EXERCISE, PLAN, STEPS, HANDOFF-TEMPLATES), `doctor-agent/`,
+  `librarian-agent/`, `agent-kit/`, `config-service/`
+- **Model**: Claude Opus 5.5 building. Gemini `gemini-3.5-flash` as the live
+  Mechanic.
+- **Input**: Adaptation level 2 for the Doctor and the Librarian (adapters over
+  their Module 7 and 8 capabilities), and a live Deep Agents Mechanic behind the
+  same port, with a human-assisted alternative. `config-service` is green, so a
+  run can seed `duplicate-name-status` into its copy: `ErrorMiddleware` returns
+  400 for a duplicate application name instead of 409.
+- **Output**:
+  - **`codebase-team/`:**
+    - `AgentPort` and the five handoff artifacts, which validate themselves
+      on write and read
+    - per-run workspace: a copy of git-visible files with a git baseline,
+      the source fingerprinted
+    - a trajectory log, the orchestrator split at the human gate
+    - 20 coordination evals (artifact, trajectory, permission, evidence,
+      outcome), `inspect` and the CLI
+  - **`agent-kit`:** `GrantedWriteBackend`, the Mechanic's mount, which writes
+    only approved paths and is checked against resolved paths.
+  - **23 tests, no provider.** The whole team runs on a miniature
+    `config-service` whose `check.py` prints .NET-shaped output, with the
+    real Deep Agents Mechanic driven by a scripted model. They cover:
+    - the approved path
+    - refusal without approval, and a refused approval
+    - an out-of-bounds edit refused by the mount
+    - a human's out-of-bounds edit reverted and flagged
+    - a corrupted handoff and a patch before approval, both caught by evals
+    - a healthy codebase stopping after diagnosis
+  - **Two real bugs the tests found:**
+    - The Doctor adapter crashed on output with no failures, so on every
+      healthy codebase, including verification after a good repair. The live
+      run had only ever hit the failing case.
+    - `revert` treated a new file as tracked after `diff()` marked it
+      intent-to-add, so an out-of-bounds new file survived. It now compares
+      against the baseline commit.
+  - **Live run `task-20261021-191836-ef1d`:**
+    1. The Doctor named the failing test (Expected 409, Actual 400) and quoted
+       the test and the `catch` block.
+    2. The Librarian's brief brought the 409 decision note and the
+       knowledge-graph warning. It bounded the edit to `ErrorMiddleware.cs`
+       and marked the test as the contract.
+    3. `continue` before approval was refused, and nothing changed.
+    4. The human approved the middleware only.
+    5. Gemini read the skill, the code and the test, ran the tests (red),
+       made one edit, and ran them again (green).
+    6. The Doctor verified, and the Librarian remembered the repair. A later
+       Librarian query returns that note first.
+    7. 20/20 evals passed, and the source fingerprint was unchanged.
+- **Cost**: Free tier; the Mechanic used 6 model calls.
+- **Reflections**: The ambiguity was the point of the scenario. A failing test
+  says "code and test disagree", not which is wrong. A Mechanic alone could
+  "fix" it by editing the test. The structure prevented that three times: the
+  Librarian's brief named the contract, the approval excluded the test, and
+  the mount would have refused the edit anyway.
+
+## Review fixes and the second live run
+
+- **Prompt**: "Review codebase-team for correctness and safety" (reviewer
+  subagent), then fix every finding.
+- **Tool**: Claude Code
+- **Mode**: Agent
+- **Context**: `codebase-team/`, `agent-kit/` mount, the Librarian adapter.
+- **Model**: Opus 5.5 (review and fixes); Gemini `gemini-3.5-flash` (Mechanic).
+- **Input**: The reviewer's findings on the gate, the evals and verification.
+- **Output**:
+  - The gate checks the task id, refuses a "proposal" approval, and needs a
+    valid diagnosis and brief. Approvals need the brief first, and grants are
+    recorded as the workspace spells them.
+  - Tests are opt-in (`--allow-tests`), because running them runs the
+    Mechanic's code.
+  - A crashed specialist is a failed step: its edits are reverted and the run
+    still ends. The original is re-fingerprinted after every step.
+  - Verification fails if tests vanish or more are skipped. The diff and
+    status use a scratch git index and see deletions and ignored files.
+  - Drill repairs are remembered as "uncertain"; the old drill note was marked
+    uncertain.
+  - Evals grew to 23 (run at rest, edits came from the patch step, no test
+    lost).
+  - **Live run `task-20261021-194732-77d4`:** the first Mechanic attempt hit
+    the free-tier daily limit; the edit-free failure was recorded and the run
+    ended cleanly. `continue` on `gemini-3.5-flash` repaired, verified (87 of
+    87 tests), and passed 23/23 evals.
+- **Cost**: Free tier; one Mechanic turn.
+- **Reflections**: The quota failure was an unplanned test of the crash path,
+  and it behaved: the run said why it stopped, and continuing on another model
+  picked up from the gate without redoing the diagnosis.

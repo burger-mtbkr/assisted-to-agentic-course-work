@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 dependencies = [
     "agent-kit",
     "deepagents>=0.7.28",
+    "google-genai>=2.31",
     "langchain-google-genai>=4.4",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",

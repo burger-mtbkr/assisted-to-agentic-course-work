@@ -155,26 +155,31 @@ class LibrarianAdapter:
         diagnosis = read_artifact(artifacts, DiagnosisReport)
         brief = read_artifact(artifacts, ContextBrief)
         patch = read_artifact(artifacts, PatchSummary)
+        # A drill repairs damage seeded into a copy: the real codebase never had the bug, so the
+        # note is a record of the drill, not a decision anyone should rely on yet.
         drill = f" (repair drill: seeded scenario {scenario!r})" if scenario else ""
         failing = ", ".join(t.rsplit(".", 1)[-1] for t in diagnosis.failing_tests) or diagnosis.observed_error
-        artifact_paths = [str(artifacts / a.FILENAME) for a in (DiagnosisReport, ContextBrief, PatchSummary)]
+        changed_tests = [p for p in patch.files_changed if is_test(p)]
+        tests = (
+            f"Also changed tests: {', '.join(changed_tests)}." if changed_tests else "No test was changed."
+        )
+        run_artifacts = [
+            f"codebase-team run {task_id}: artifacts/{kind.FILENAME}"
+            for kind in (DiagnosisReport, ContextBrief, PatchSummary, VerificationReport)
+        ]
         saved = self.tools.remember_decision(
             title=f"Repair {task_id}: {failing}"[:80],
             statement=(
                 f"When {failing} fails{drill}, the verified repair was: {patch.intent} "
-                f"Changed: {', '.join(patch.files_changed)}. Tests left as the contract."
+                f"Changed: {', '.join(patch.files_changed)}. {tests}"
             ),
             rationale=(
                 f"Diagnosis: {diagnosis.suspected_cause}. Context: {'; '.join(brief.facts[:2])}. "
                 f"Verification: {verification.recommendation}"
             ),
-            sources=[
-                *patch.files_changed,
-                *brief.relevant_tests,
-                *artifact_paths,
-                str(artifacts / "verification.json"),
-            ],
+            sources=[*patch.files_changed, *brief.relevant_tests, *run_artifacts],
             confidence=0.9,
             entities=[],
+            status="uncertain" if scenario else "current",
         )
         return AgentResult(self.name, "ok", f"Remembered as note {saved['remembered']}", [saved["file"]])

@@ -13,9 +13,9 @@ from typing import Any
 
 from agent_kit.recording import compact
 
-COMMIT = re.compile(r"^[0-9a-fA-F]{4,40}$")
-FIELD, RECORD = "\x1f", "\x1e"
-LOG_FORMAT = f"--format=%h{FIELD}%ad{FIELD}%an{FIELD}%s{RECORD}"
+COMMIT = re.compile(r"[0-9a-fA-F]{4,40}")
+FIELD = "\x1f"
+LOG_FORMAT = f"--format=%h{FIELD}%ad{FIELD}%an{FIELD}%s"  # with -z: one NUL-separated record per commit
 GIT_TIMEOUT_SECONDS = 30
 DIFF_CHARS = 6000
 
@@ -30,7 +30,8 @@ class GitHistory:
 
     def _git(self, *args: str) -> str:
         proc = subprocess.run(
-            ["git", *args],
+            # Literal pathspecs: `:(top)`, `:/` or `:!` would otherwise reach outside the codebase.
+            ["git", "--literal-pathspecs", *args],
             cwd=self.codebase,
             capture_output=True,
             stdin=subprocess.DEVNULL,
@@ -52,37 +53,43 @@ class GitHistory:
             pure.is_absolute()
             or ".." in pure.parts
             or re.match(r"^[A-Za-z]:", cleaned)
-            or cleaned.startswith("-")
+            or cleaned.startswith(("-", ":"))
         ):
             raise HistoryError(f"{path!r} is not a path inside the codebase.")
         return cleaned
 
     def _commits(self, output: str) -> list[dict[str, str]]:
         commits = []
-        for record in filter(None, (r.strip() for r in output.split(RECORD))):
-            short, date, author, subject = record.split(FIELD)
-            commits.append({"commit": short, "date": date, "author": author, "subject": subject})
+        for record in filter(None, (r.strip() for r in output.split("\0"))):
+            short, date, author, subject = record.split(FIELD, 3)
+            # A subject containing the separators is kept whole, separators shown as spaces.
+            commits.append(
+                {"commit": short, "date": date, "author": author, "subject": subject.replace(FIELD, " ")}
+            )
         return commits
 
     def log(self, path: str = "", limit: int = 15) -> dict[str, Any]:
         """Recent commits touching the codebase, or one path in it, newest first."""
         scope = self._pathspec(path)
         limit = min(max(int(limit), 1), 50)
-        output = self._git("log", f"-n{limit}", "--date=short", LOG_FORMAT, "--", scope)
+        output = self._git("log", "-z", f"-n{limit}", "--date=short", LOG_FORMAT, "--", scope)
         return {"scope": scope, "commits": self._commits(output)}
 
     def file_history(self, path: str, limit: int = 20) -> dict[str, Any]:
         """Commits that touched one file, following renames."""
         scope = self._pathspec(path)
         limit = min(max(int(limit), 1), 50)
-        output = self._git("log", "--follow", f"-n{limit}", "--date=short", LOG_FORMAT, "--", scope)
+        output = self._git("log", "-z", "--follow", f"-n{limit}", "--date=short", LOG_FORMAT, "--", scope)
         return {"path": scope, "commits": self._commits(output)}
 
     def show(self, commit: str) -> dict[str, Any]:
         """One commit's message, the codebase files it changed, and its codebase diff (compacted)."""
-        if not COMMIT.match(commit.strip()):
+        if not COMMIT.fullmatch(commit.strip()):
             raise HistoryError(f"{commit!r} is not a commit hash.")
-        sha = commit.strip()
+        try:
+            sha = self._git("rev-parse", "--verify", "--quiet", f"{commit.strip()}^{{commit}}").strip()
+        except HistoryError:
+            raise HistoryError(f"{commit!r} is not a commit in this repository.") from None
         header = self._git("show", "-s", "--date=short", f"--format=%h{FIELD}%ad{FIELD}%an{FIELD}%B", sha)
         short, date, author, message = header.split(FIELD, 3)
         files = self._git("show", "--format=", "--stat=120", sha, "--", ".").strip()

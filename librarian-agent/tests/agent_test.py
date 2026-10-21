@@ -11,6 +11,7 @@ from librarian_agent.agent import LibrarianAgent
 from librarian_agent.embeddings import HashingEmbedder
 
 OWN_TOOLS = [
+    "mark_memory_note",
     "file_history",
     "git_log",
     "git_show",

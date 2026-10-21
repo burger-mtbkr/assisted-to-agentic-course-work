@@ -26,7 +26,8 @@ from codebase_team.artifacts import (
     write_artifact,
 )
 
-FAILED_TEST = re.compile(r"^\s*Failed (\S+) \[", re.M)
+# `Failed <name> [3 ms]`; a [Theory] name carries its arguments: `Ns.T.M(key: "a b") [1 ms]`.
+FAILED_TEST = re.compile(r"^\s*Failed (.+?) \[\d+(?:\.\d+)? ?m?s\]\s*$", re.M)
 SUMMARY = re.compile(
     r"(?:Passed|Failed)!\s+-\s+Failed:\s+(\d+), Passed:\s+(\d+), Skipped:\s+(\d+), Total:\s+(\d+)"
 )
@@ -43,12 +44,21 @@ class TestFailure:
 
     @property
     def method(self) -> str:
-        return self.name.rsplit(".", 1)[-1]
+        return self.name.split("(", 1)[0].rsplit(".", 1)[-1]
 
     @property
     def subject(self) -> str:
         """The identifier a test is about, by this codebase's naming: `Subject_Behaviour`."""
         return self.method.split("_", 1)[0]
+
+
+def test_counts(output: str) -> dict[str, int]:
+    """The test run's own summary line, summed over test assemblies."""
+    totals = {"failed": 0, "passed": 0, "skipped": 0, "total": 0}
+    for match in SUMMARY.finditer(output):
+        for key, value in zip(totals, match.groups(), strict=True):
+            totals[key] += int(value)
+    return totals
 
 
 def relative(path: str, workspace: Path) -> str | None:
@@ -63,7 +73,8 @@ def relative(path: str, workspace: Path) -> str | None:
 def parse_failures(output: str, workspace: Path) -> list[TestFailure]:
     failures = []
     starts = [m.start() for m in FAILED_TEST.finditer(output)]
-    for begin, end in zip(starts, [*starts[1:], len(output)], strict=True):
+    ends = [*starts[1:], len(output)] if starts else []
+    for begin, end in zip(starts, ends, strict=True):
         block = output[begin:end]
         name = FAILED_TEST.match(block).group(1)
         message = block.split("Error Message:", 1)[-1].split("Stack Trace:", 1)[0]
@@ -198,6 +209,7 @@ class DoctorAdapter:
             evidence=evidence,
             uncertainty=uncertainty,
             recommended_next_step=next_step,
+            test_counts=test_counts(tests["stdout"]),
         )
         path = write_artifact(artifacts, report)
         return AgentResult(
@@ -217,11 +229,22 @@ class DoctorAdapter:
         evidence = [self._check_evidence(tests), self._check_evidence(lint)]
         failures = parse_failures(tests["stdout"], workspace)
         evidence += [Evidence(f.name, "command", f.message) for f in failures]
+        evidence.append(
+            Evidence("patch_summary.json", "diff", f"verifying a change to {', '.join(patch.files_changed)}")
+        )
         incomplete = any(r.get("error") for r in (tests, lint))
-        passed = tests["passed"] and lint["passed"]
+        # A test that was deleted, renamed or skipped is not a test that passes: the run
+        # must have at least as many tests as the diagnosis saw, and no more skipped.
+        before, after = diagnosis.test_counts, test_counts(tests["stdout"])
+        shrunk = []
+        if before.get("total") and after["total"] < before["total"]:
+            shrunk.append(f"test count fell from {before['total']} to {after['total']}")
+        if before.get("total") and after["skipped"] > before["skipped"]:
+            shrunk.append(f"skipped tests rose from {before['skipped']} to {after['skipped']}")
+        passed = tests["passed"] and lint["passed"] and not shrunk
         status = "inconclusive" if incomplete else ("verified" if passed else "failed")
         fixed = [t for t in diagnosis.failing_tests if t not in {f.name for f in failures}]
-        if fixed:
+        if fixed and not shrunk:
             evidence.append(Evidence("service tests", "command", f"now passing: {', '.join(fixed)}"))
         recommendation = {
             "verified": "Accept the patch: every check passes, including the one the diagnosis saw fail.",
@@ -233,10 +256,13 @@ class DoctorAdapter:
             status=status,
             checks_run=[tests["check"], lint["check"]],
             passed=bool(passed and not incomplete),
-            remaining_failures=[f.name for f in failures] + ([] if lint["passed"] else [lint["check"]]),
-            files_inspected=patch.files_changed,
+            remaining_failures=[f.name for f in failures]
+            + ([] if lint["passed"] else [lint["check"]])
+            + shrunk,
+            files_inspected=[],
             evidence=evidence,
             recommendation=recommendation,
+            test_counts=after,
         )
         path = write_artifact(artifacts, report)
         return AgentResult(self.name, "ok", f"{status}: {recommendation}", [str(path)], evidence[:2], 0.9)

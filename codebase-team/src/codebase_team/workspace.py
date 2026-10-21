@@ -9,25 +9,32 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from agent_kit.mount import visible_files
+from agent_kit.mount import ALWAYS_HIDDEN_DIRS, visible_files
 
 from codebase_team import scenarios
 
 GIT_IDENTITY = ["-c", "user.email=codebase-team@localhost", "-c", "user.name=codebase-team"]
 
 
-def git(cwd: Path, *args: str) -> str:
+def git(cwd: Path, *args: str, index: Path | None = None) -> str:
+    """Run git in `cwd`; with `index`, against that index file instead of the repository's."""
+    env = {**os.environ, "GIT_INDEX_FILE": str(index)} if index else None
     proc = subprocess.run(
         ["git", *GIT_IDENTITY, "-c", "core.autocrlf=false", *args],
         cwd=cwd,
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -71,24 +78,52 @@ class Run:
     def meta(self) -> dict[str, Any]:
         return json.loads((self.root / "run.json").read_text(encoding="utf-8"))
 
-    def changed_files(self) -> list[str]:
-        """Workspace paths that differ from the baseline, new files included."""
-        out = git(self.workspace, "status", "--porcelain=v1", "-z", "--untracked-files=all")
-        return sorted(entry[3:] for entry in out.split("\0") if len(entry) > 3)
+    @contextmanager
+    def _scratch_index(self) -> Iterator[Path]:
+        """A throwaway copy of the workspace's git index: reading the run (diff, inspect)
+        must not change it."""
+        with tempfile.TemporaryDirectory() as scratch:
+            index = Path(scratch) / "index"
+            shutil.copy2(self.workspace / ".git" / "index", index)
+            yield index
 
-    def diff(self) -> str:
-        git(self.workspace, "add", "--intent-to-add", "--all")  # so new files show in the diff
-        return git(self.workspace, "diff")
+    def changed_files(self) -> list[str]:
+        """Workspace paths that differ from the baseline: modified, new, deleted - and new
+        files git ignores, which no diff would show (build and dependency output aside)."""
+        with self._scratch_index() as index:
+            out = git(
+                self.workspace,
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+                "--ignored=matching",
+                index=index,
+            )
+        changed = []
+        for entry in filter(None, out.split("\0")):
+            path = entry[3:].rstrip("/")
+            if entry.startswith("!!") and ALWAYS_HIDDEN_DIRS.intersection(path.split("/")):
+                continue
+            changed.append(path)
+        return sorted(changed)
+
+    def diff(self, *options: str) -> str:
+        """The change against the baseline commit, new files included, deletions too."""
+        with self._scratch_index() as index:
+            git(self.workspace, "add", "--intent-to-add", ".", index=index)
+            return git(self.workspace, "diff", *options, "HEAD", index=index)
 
     def diff_stat(self) -> str:
-        git(self.workspace, "add", "--intent-to-add", "--all")
-        return git(self.workspace, "diff", "--stat").strip()
+        return self.diff("--stat").strip()
 
     def revert(self, paths: list[str]) -> None:
-        tracked = set(git(self.workspace, "ls-files", "-z").split("\0"))
+        """Put paths back as the baseline commit had them: restore what it had, delete what
+        it did not."""
+        in_baseline = set(git(self.workspace, "ls-tree", "-r", "-z", "--name-only", "HEAD").split("\0"))
         for path in paths:
-            if path in tracked:
-                git(self.workspace, "checkout", "--", path)
+            if path in in_baseline:
+                git(self.workspace, "checkout", "HEAD", "--", path)
             else:
                 (self.workspace / path).unlink(missing_ok=True)
                 git(self.workspace, "rm", "--cached", "--quiet", "--ignore-unmatch", "--", path)

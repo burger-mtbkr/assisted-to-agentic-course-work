@@ -12,10 +12,10 @@ from agent_kit.recording import RunRecorder
 from librarian_agent.agent import LibrarianAgent, build_embedder, build_tools
 from librarian_agent.config import ConfigError, LibrarianConfig
 from librarian_agent.indexer import build_index
-from librarian_agent.inspection import report
+from librarian_agent.inspection import report, retrieval_artifact
 from librarian_agent.notes import NoteError, NoteStore
 from librarian_agent.seeds import seed
-from librarian_agent.store import IndexUnavailable, MemoryIndex
+from librarian_agent.store import EmbeddingCache, IndexUnavailable, MemoryIndex
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -32,16 +32,20 @@ def main(argv: list[str] | None = None) -> int:
     inspect = commands.add_parser("inspect", help="notes, index, retrievals and sessions at a glance")
     inspect.add_argument("--note", metavar="ID", help="print one note in full")
     inspect.add_argument("--retrievals", type=int, default=5, metavar="N")
+    inspect.add_argument(
+        "--retrieval", metavar="ARTIFACT", help='print one retrieval artifact (name or "latest")'
+    )
     args = parser.parse_args(argv)
 
     try:
         config = LibrarianConfig.load()
         if args.command == "inspect":
-            print(
-                NoteStore(config.notes_dir).read(args.note).to_markdown()
-                if args.note
-                else report(config, args.retrievals)
-            )
+            if args.note:
+                print(NoteStore(config.notes_dir).read(args.note).to_markdown())
+            elif args.retrieval:
+                print(retrieval_artifact(config, args.retrieval))
+            else:
+                print(report(config, args.retrievals))
             return 0
         if args.command == "seed":
             for note in seed(NoteStore(config.notes_dir)):
@@ -56,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
                 NoteStore(config.notes_dir),
                 MemoryIndex(config.db_path),
                 embedder,
+                EmbeddingCache(config.cache_path),
             )
             print(
                 f"Indexed {built.documents} files as {built.chunks} chunks, {built.notes} notes, "
@@ -66,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
             result = build_tools(config, embedder).retrieve_context(args.query, args.include_superseded)
             print(json.dumps(result, indent=2, ensure_ascii=False))
             return 0
+        config.require_key()  # the chat model needs it even when embeddings are local
     except (ConfigError, NoteError, IndexUnavailable) as exc:
         print(f"librarian: {exc}", file=sys.stderr)
         return 2

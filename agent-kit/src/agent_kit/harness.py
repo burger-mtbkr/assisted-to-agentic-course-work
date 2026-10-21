@@ -17,8 +17,9 @@ from deepagents import FilesystemPermission, create_deep_agent
 from deepagents.backends import CompositeBackend, StateBackend
 from deepagents.backends.protocol import BackendProtocol
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse, ModelRetryMiddleware
+from langchain.agents.middleware.types import ExtendedModelResponse
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai.chat_models import GoogleAPIError, GoogleRateLimitError
@@ -100,6 +101,83 @@ class ToolSurface(AgentMiddleware):
         return self._refuse(request) or await handler(request)
 
 
+FINAL_ROUND = (
+    "\n\nThis is your last step in this turn: tools are off. Answer now with the evidence you "
+    "already have, and say plainly what you did not get to check."
+)
+STOPPED = (
+    "I reached my step limit for this turn before finishing. Ask me to continue, or narrow the question."
+)
+
+
+def _answer_only(message: Any) -> Any:
+    if not isinstance(message, AIMessage) or not message.tool_calls:
+        return message
+    return AIMessage(content=text_of(message.content).strip() or STOPPED, id=message.id)
+
+
+def _without_tool_calls(result: Any) -> Any:
+    """The final round's reply with any tool calls dropped, whatever wrapper carries it."""
+    if isinstance(result, ExtendedModelResponse):
+        result.model_response = _without_tool_calls(result.model_response)
+    elif isinstance(result, ModelResponse):
+        result.result = [_answer_only(m) for m in result.result]
+    else:
+        result = _answer_only(result)
+    return result
+
+
+class RoundBudget(AgentMiddleware):
+    """At most `rounds` model calls per turn; the last one is told to answer with what it has,
+    and its reply is an answer even if the model tries to call a tool.
+
+    Each tool round is one request, and the free tier allows about 20 a day per model: an
+    agent that keeps reading until the quota runs out answers nothing. Module 6's
+    hand-rolled loop had this rule; a framework loop does not, unless it is added.
+
+    Asking is not enough: Gemini ignores `tool_choice="none"`, and still calls a tool when
+    no tools are declared but the history holds tool calls (both measured). So the
+    request asks, and the response is enforced.
+    """
+
+    def __init__(self, rounds: int):
+        super().__init__()
+        if rounds < 1:
+            raise ValueError("A turn needs at least one model call.")
+        self.rounds = rounds
+
+    def _final(self, request: ModelRequest) -> bool:
+        since_user = 0
+        for message in reversed(request.messages):
+            if isinstance(message, HumanMessage):
+                break
+            since_user += isinstance(message, AIMessage)
+        return since_user >= self.rounds - 1
+
+    @staticmethod
+    def _ask_for_an_answer(request: ModelRequest) -> ModelRequest:
+        system = request.system_message
+        content = system.content if system else ""
+        content = (
+            [*content, {"type": "text", "text": FINAL_ROUND}]
+            if isinstance(content, list)
+            else content + FINAL_ROUND
+        )
+        return request.override(tool_choice="none", system_message=SystemMessage(content=content))
+
+    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> Any:
+        if not self._final(request):
+            return handler(request)
+        return _without_tool_calls(handler(self._ask_for_an_answer(request)))
+
+    async def awrap_model_call(
+        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+    ) -> Any:
+        if not self._final(request):
+            return await handler(request)
+        return _without_tool_calls(await handler(self._ask_for_an_answer(request)))
+
+
 def assemble(
     model: BaseChatModel,
     *,
@@ -108,8 +186,10 @@ def assemble(
     routes: Mapping[str, BackendProtocol],
     excluded_tools: frozenset[str],
     permissions: Sequence[FilesystemPermission],
+    rounds: int = 12,
 ) -> CompiledStateGraph:
-    """A Deep Agent with skills under `/skills/`, the given mounts, and nothing else.
+    """A Deep Agent with skills under `/skills/`, the given mounts, and nothing else, that
+    answers within `rounds` model calls per turn.
 
     Paths outside the mounts land in Deep Agents' in-memory state backend, not on disk.
     """
@@ -117,7 +197,7 @@ def assemble(
         model=model,
         tools=list(tools),
         system_prompt=system_prompt,
-        middleware=[ToolSurface(excluded_tools), model_retry()],
+        middleware=[ToolSurface(excluded_tools), RoundBudget(rounds), model_retry()],
         skills=["/skills/"],
         backend=CompositeBackend(default=StateBackend(), routes=dict(routes)),
         permissions=list(permissions),

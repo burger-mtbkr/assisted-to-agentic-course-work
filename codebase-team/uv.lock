@@ -844,6 +844,7 @@ source = { editable = "../librarian-agent" }
 dependencies = [
     { name = "agent-kit" },
     { name = "deepagents" },
+    { name = "google-genai" },
     { name = "langchain-google-genai" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -853,6 +854,7 @@ dependencies = [
 requires-dist = [
     { name = "agent-kit", editable = "../agent-kit" },
     { name = "deepagents", specifier = ">=0.7.28" },
+    { name = "google-genai", specifier = ">=2.31" },
     { name = "langchain-google-genai", specifier = ">=4.4" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },

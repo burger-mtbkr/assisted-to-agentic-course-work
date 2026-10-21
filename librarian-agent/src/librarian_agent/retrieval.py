@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import statistics
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -21,10 +22,17 @@ from librarian_agent.store import Chunk, Edge, MemoryIndex
 
 SEMANTIC_K = 8
 PER_SOURCE = 2  # tuned: without a cap one long doc fills every slot (see the Module 8 journal)
-# Tuned on real queries (Module 8 journal): Gemini packs scores into 0.57-0.78, the
-# hashing embedder spreads them over 0.1-0.5, so a tight floor (first 0.85) did nothing
-# for one and starved the other. Half the best score drops only the clear tail.
+# Tuned on real queries (Module 8 journal). Raw scores mean different things per
+# embedder: Gemini packs them into 0.55-0.8, the hashing embedder spreads them over
+# 0.0-0.5. So a hit must clear both half the best score and the corpus mean plus one
+# standard deviation - "better than a typical chunk" - whichever is higher.
 RELATIVE_FLOOR = 0.5
+# Best score fewer than this many standard deviations above the corpus mean: weak evidence.
+# Measured on config-service with Gemini: answerable questions 3.5-7.4, an off-topic one
+# ("how do I bake sourdough bread?") 2.8.
+WEAK_EVIDENCE_SIGMAS = 3.0
+# Below this many chunks, a mean and standard deviation describe nothing useful.
+MIN_CORPUS = 30
 MIN_EDGE_CONFIDENCE = 0.6
 GRAPH_DISCOUNT = 0.9
 MAX_EDGES = 30
@@ -32,11 +40,23 @@ SNIPPET_CHARS = 400
 HISTORY_QUESTION = re.compile(r"\b(why|when|changed?|history|decid\w*|introduc\w*|before|used to)\b", re.I)
 
 
+def strength(scored: list[tuple[float, Chunk]]) -> float | None:
+    """How far the best score stands above the corpus, in standard deviations (None when the
+    corpus is too small to say). The best is the best live chunk: a superseded or archived
+    note that matches well is not evidence for the answer."""
+    scores = [score for score, _ in scored]
+    best = next((score for score, chunk in scored if chunk.status not in ("superseded", "archived")), None)
+    if len(scores) < MIN_CORPUS or best is None:
+        return None
+    spread = statistics.pstdev(scores) or 1e-9
+    return (best - statistics.fmean(scores)) / spread
+
+
 def select_semantic(
     scored: list[tuple[float, Chunk]], include_superseded: bool = False
 ) -> tuple[list[tuple[float, Chunk]], list[tuple[float, Chunk]]]:
-    """Best-first hits, at most PER_SOURCE per source and within RELATIVE_FLOOR of the top
-    score - plus, separately, the superseded or archived notes that would have made the cut."""
+    """Best-first hits, at most PER_SOURCE per source, above the floor (see RELATIVE_FLOOR)
+    - plus, separately, the superseded or archived notes that would have made the cut."""
 
     def stale(chunk: Chunk) -> bool:
         return not include_superseded and chunk.status in ("superseded", "archived")
@@ -44,9 +64,14 @@ def select_semantic(
     kept: list[tuple[float, Chunk]] = []
     hidden: list[tuple[float, Chunk]] = []
     per_source: dict[str, int] = {}
+    scores = [score for score, _ in scored]
     top = next((score for score, chunk in scored if not stale(chunk)), 0.0)
+    floor = top * RELATIVE_FLOOR
+    if len(scores) >= MIN_CORPUS:
+        # Never above the best hit: a flat distribution is reported as weak evidence instead.
+        floor = min(top, max(floor, statistics.fmean(scores) + statistics.pstdev(scores)))
     for score, chunk in scored:
-        if len(kept) >= SEMANTIC_K or score < top * RELATIVE_FLOOR:
+        if len(kept) >= SEMANTIC_K or score < floor:
             break
         if per_source.get(chunk.source, 0) >= PER_SOURCE:
             continue
@@ -64,7 +89,8 @@ def _identifier(word: str) -> bool:
 
 
 def match_entities(query: str, index: MemoryIndex) -> list[dict[str, str]]:
-    """Terms named (or aliased) in the question, and files it names as identifiers.
+    """Terms named (or aliased) in the question - with their knowledge-graph definition and
+    warnings - and files it names as identifiers.
 
     File names are matched only when typed like code: the prose word "application"
     must not pull in Application.cs, but "ErrorMiddleware" or "api.ts" should.
@@ -76,7 +102,13 @@ def match_entities(query: str, index: MemoryIndex) -> list[dict[str, str]]:
         for name in [entity["name"], *json.loads(entity["aliases"])]:
             if len(name) >= 3 and re.search(rf"\b{re.escape(name.lower())}(?:s|es)?\b", lowered):
                 hits.append(
-                    {"id": entity["id"], "name": entity["name"], "matched_by": f"question mentions {name!r}"}
+                    {
+                        "id": entity["id"],
+                        "name": entity["name"],
+                        "matched_by": f"question mentions {name!r}",
+                        "knowledge": entity["summary"],
+                        "source": entity["source"],
+                    }
                 )
                 break
     for entity in index.entities(["file"]):
@@ -88,14 +120,20 @@ def match_entities(query: str, index: MemoryIndex) -> list[dict[str, str]]:
     return hits
 
 
-def expand(seeds: list[str], named: set[str], index: MemoryIndex) -> list[Edge]:
+def expand(seeds: list[str], named: set[str], stale: set[str], index: MemoryIndex) -> list[Edge]:
     """One hop from every seed, plus a second hop from a named term's files to their tests.
 
+    Edges touching a stale (superseded or archived) note are dropped - except the
+    `supersedes` edge from its successor, kept as history, which `recommend` never walks.
     With a cap on edges, order decides what survives: edges from terms the question
     named, then from remembered notes (curated links to code), then tests of seed
     files, then the rest.
     """
-    edges = index.edges_touching(seeds, MIN_EDGE_CONFIDENCE)
+    edges = [
+        e
+        for e in index.edges_touching(seeds, MIN_EDGE_CONFIDENCE)
+        if not {e.src, e.dst} & stale or (e.rel == "supersedes" and e.src not in stale)
+    ]
     implementations = [e.dst for e in edges if e.rel == "implemented_in" and e.src in named]
     edges += [e for e in index.edges_touching(implementations, MIN_EDGE_CONFIDENCE) if e.rel == "tested_in"]
 
@@ -114,7 +152,7 @@ def expand(seeds: list[str], named: set[str], index: MemoryIndex) -> list[Edge]:
 
 
 def recommend(
-    semantic: list[tuple[float, Chunk]], named: set[str], graph: list[Edge]
+    semantic: list[tuple[float, Chunk]], named: set[str], graph: list[Edge], stale: set[str] = frozenset()
 ) -> list[dict[str, Any]]:
     """What to read, best first. A source scores by its best evidence, not the sum of it: a
     long file with many weak chunks must not outrank the one note that answers the question.
@@ -139,7 +177,7 @@ def recommend(
     for _ in range(2):  # twice: term -> file, then file -> test
         for edge in graph:
             for here, there in ((edge.src, edge.dst), (edge.dst, edge.src)):
-                if here in reached and there.startswith(("file:", "note:")):
+                if here in reached and there.startswith(("file:", "note:")) and there not in stale:
                     score = round(reached[here] * GRAPH_DISCOUNT, 3)
                     if score > reached.get(there, 0.0):
                         reached[there] = score
@@ -160,14 +198,21 @@ def retrieve_context(
     index.require(embedder.name)
     scored = index.search(embedder.embed_query(query), include_superseded=True)
     semantic, hidden = select_semantic(scored, include_superseded)
+    stale = (
+        set()
+        if include_superseded
+        else {
+            f"note:{n}" for n, status in index.note_statuses().items() if status in ("superseded", "archived")
+        }
+    )
 
     entity_hits = match_entities(query, index)
     named = {h["id"] for h in entity_hits}
     seeds = [h["id"] for h in entity_hits]
     for _, chunk in semantic:
         seeds.append(chunk.source if chunk.source.startswith("note:") else f"file:{chunk.source}")
-    graph = expand(list(dict.fromkeys(seeds)), named, index)
-    recommended = recommend(semantic, named, graph)
+    graph = expand(list(dict.fromkeys(seeds)), named, stale, index)
+    recommended = recommend(semantic, named, graph, stale)
 
     memories = []
     for _, chunk in semantic:
@@ -202,7 +247,8 @@ def retrieve_context(
         "graph_expansion": [asdict(e) for e in graph],
         "memories": memories,
         "recommended_context": recommended,
-        "gaps": gaps(query, semantic, hidden, entity_hits, graph, recommended, memories, index, codebase),
+        "gaps": gaps(query, semantic, hidden, entity_hits, graph, recommended, memories, index, codebase)
+        + _evidence_gaps(scored, graph, stale),
     }
     result["artifact"] = str(_record(result, retrievals_dir))
     return result
@@ -261,6 +307,20 @@ def gaps(
     if not semantic:
         found.append("Nothing in the index matched.")
     return list(dict.fromkeys(found))
+
+
+def _evidence_gaps(scored: list[tuple[float, Chunk]], graph: list[Edge], stale: set[str]) -> list[str]:
+    found = []
+    sigmas = strength(scored)
+    if sigmas is not None and sigmas < WEAK_EVIDENCE_SIGMAS:
+        found.append(
+            f"Weak evidence: the best match is only {sigmas:.1f} standard deviations above a typical chunk; "
+            "the index may not cover this question - verify in source before relying on any hit."
+        )
+    for edge in graph:
+        if edge.rel == "supersedes" and edge.dst in stale:
+            found.append(f"{edge.src} supersedes {edge.dst}; ask with include_superseded for the history.")
+    return found
 
 
 def _record(result: dict[str, Any], retrievals_dir: Path) -> Path:

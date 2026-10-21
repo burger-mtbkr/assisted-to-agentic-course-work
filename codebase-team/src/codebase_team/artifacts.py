@@ -75,8 +75,19 @@ class Artifact:
         if missing := sorted(names - set(data)):
             raise ArtifactError(f"{cls.__name__} is missing {', '.join(missing)}")
         values = {k: v for k, v in data.items() if k in names}
+        for f in fields(cls):
+            value = values[f.name]
+            if "list" in str(f.type) and not (
+                isinstance(value, list) and all(isinstance(v, str | dict) for v in value)
+            ):
+                raise ArtifactError(f"{cls.__name__}.{f.name} must be a list")
+            if "dict" in str(f.type) and not isinstance(value, dict):
+                raise ArtifactError(f"{cls.__name__}.{f.name} must be an object")
         if "evidence" in values:
-            values["evidence"] = [Evidence(**e) if isinstance(e, dict) else e for e in values["evidence"]]
+            items = values["evidence"]
+            if not all(isinstance(e, dict) and set(e) == {"source", "kind", "detail"} for e in items):
+                raise ArtifactError(f"{cls.__name__}.evidence items need exactly source, kind and detail")
+            values["evidence"] = [Evidence(**e) for e in items]
         return cls(**values)
 
 
@@ -97,6 +108,7 @@ class DiagnosisReport(Artifact):
     evidence: list[Evidence]
     uncertainty: list[str]
     recommended_next_step: str
+    test_counts: dict[str, int]  # failed, passed, skipped, total - from the test run's summary
 
     def problems(self) -> list[str]:
         found = super().problems() + _missing(self, "task_id", "evidence", "recommended_next_step")
@@ -179,6 +191,7 @@ class VerificationReport(Artifact):
     files_inspected: list[str]
     evidence: list[Evidence]
     recommendation: str
+    test_counts: dict[str, int]
 
     def problems(self) -> list[str]:
         found = super().problems() + _missing(self, "task_id", "checks_run", "evidence", "recommendation")

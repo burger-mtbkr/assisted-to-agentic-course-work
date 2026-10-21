@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,7 +23,7 @@ CREATE TABLE documents (path TEXT PRIMARY KEY, kind TEXT NOT NULL, sha1 TEXT NOT
 CREATE TABLE chunks (
     id INTEGER PRIMARY KEY,
     source TEXT NOT NULL,          -- a codebase path, or note:<id>
-    kind TEXT NOT NULL,            -- doc, source, test, knowledge, contract, note
+    kind TEXT NOT NULL,            -- doc, source, test, knowledge, contract, config, note
     start_line INTEGER, end_line INTEGER,
     text TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'current',  -- notes only: current, uncertain, superseded, archived
@@ -38,14 +39,6 @@ CREATE TABLE relationships (
     evidence TEXT NOT NULL, confidence REAL NOT NULL,
     PRIMARY KEY (src, rel, dst)
 );
-"""
-
-# Vectors by (embedder, sha1 of text): rebuilding the index re-embeds only what changed,
-# which matters on a free tier that allows 100 embedded texts a minute.
-CACHE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS embedding_cache (
-    embedder TEXT NOT NULL, sha1 TEXT NOT NULL, vector TEXT NOT NULL, PRIMARY KEY (embedder, sha1)
-)
 """
 
 
@@ -72,27 +65,74 @@ class Edge:
     confidence: float
 
 
+@contextmanager
+def connect(path: Path) -> Iterator[sqlite3.Connection]:
+    """A connection that commits on success and is always closed (Windows cannot replace an
+    open database file)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
+class EmbeddingCache:
+    """Vectors by (embedder, sha1 of text), in their own file so they outlive any rebuild:
+    re-indexing embeds only what changed, which matters on a free tier that allows 100
+    embedded texts a minute."""
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with connect(self.path) as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS vectors (embedder TEXT NOT NULL, sha1 TEXT NOT NULL, "
+                "vector TEXT NOT NULL, PRIMARY KEY (embedder, sha1))"
+            )
+            yield db
+
+    def get(self, embedder_name: str, shas: Sequence[str]) -> dict[str, Vector]:
+        wanted = set(shas)
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT sha1, vector FROM vectors WHERE embedder = ?", (embedder_name,)
+            ).fetchall()
+        return {r["sha1"]: json.loads(r["vector"]) for r in rows if r["sha1"] in wanted}
+
+    def put(self, embedder_name: str, vectors: dict[str, Vector]) -> None:
+        with self._connect() as db:
+            db.executemany(
+                "INSERT OR REPLACE INTO vectors VALUES (?, ?, ?)",
+                [(embedder_name, sha, json.dumps(v)) for sha, v in vectors.items()],
+            )
+
+
 class MemoryIndex:
     def __init__(self, db_path: Path):
         self.db_path = db_path
 
-    def _connect(self) -> sqlite3.Connection:
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self.db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute(CACHE_SCHEMA)
-        return connection
+    def _connect(self) -> AbstractContextManager[sqlite3.Connection]:
+        return connect(self.db_path)
 
     # -- building ---------------------------------------------------------------
 
-    def reset(self, embedder_name: str) -> None:
-        """Drop and recreate everything derived. The embedding cache survives."""
+    def reset(self) -> None:
+        """Drop and recreate everything. The index is unusable until `seal`."""
         with self._connect() as db:
             for table in ("meta", "documents", "chunks", "entities", "relationships"):
                 db.execute(f"DROP TABLE IF EXISTS {table}")
             db.executescript(SCHEMA)
+
+    def seal(self, embedder_name: str) -> None:
+        """Mark a finished build usable, recording which embedder made its vectors."""
+        with self._connect() as db:
             db.executemany(
-                "INSERT INTO meta VALUES (?, ?)",
+                "INSERT OR REPLACE INTO meta VALUES (?, ?)",
                 [
                     ("embedder", embedder_name),
                     ("indexed_at", datetime.now(UTC).isoformat(timespec="seconds")),
@@ -112,19 +152,6 @@ class MemoryIndex:
                     (c.source, c.kind, c.start_line, c.end_line, c.text, c.status, json.dumps(v))
                     for c, v in zip(chunks, vectors, strict=True)
                 ],
-            )
-
-    def cached_vectors(self, embedder_name: str, shas: Sequence[str]) -> dict[str, Vector]:
-        wanted = set(shas)
-        with self._connect() as db:
-            rows = db.execute("SELECT sha1, vector FROM embedding_cache WHERE embedder = ?", (embedder_name,))
-            return {r["sha1"]: json.loads(r["vector"]) for r in rows if r["sha1"] in wanted}
-
-    def cache_vectors(self, embedder_name: str, vectors: dict[str, Vector]) -> None:
-        with self._connect() as db:
-            db.executemany(
-                "INSERT OR REPLACE INTO embedding_cache VALUES (?, ?, ?)",
-                [(embedder_name, sha, json.dumps(v)) for sha, v in vectors.items()],
             )
 
     def replace_note_chunk(self, chunk: Chunk, vector: Vector) -> None:
@@ -214,6 +241,12 @@ class MemoryIndex:
                 [*wanted, *wanted, min_confidence],
             ).fetchall()
         return [Edge(r["src"], r["rel"], r["dst"], r["evidence"], r["confidence"]) for r in rows]
+
+    def note_statuses(self) -> dict[str, str]:
+        """Each indexed note's status, as the index knows it."""
+        with self._connect() as db:
+            rows = db.execute("SELECT source, status FROM chunks WHERE kind = 'note'").fetchall()
+        return {r["source"].removeprefix("note:"): r["status"] for r in rows}
 
     def document_sha(self, path: str) -> str | None:
         with self._connect() as db:

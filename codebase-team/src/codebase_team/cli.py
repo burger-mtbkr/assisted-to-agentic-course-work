@@ -2,7 +2,8 @@
 
 run [--scenario S]                     diagnose and brief, then stop for approval (the safe path)
 run ... --approve PATH --rationale R   the full approved path in one command
-approve TASK --path P --rationale R    record the human decision (--reject to refuse)
+approve TASK --path P --rationale R    record the human decision (--reject to refuse;
+                                       --allow-tests lets the Mechanic run the tests)
 continue TASK [--mechanic agent|human] patch (only if approved), verify, [--remember]
 evals TASK | inspect TASK | list
 """
@@ -68,7 +69,9 @@ def main(argv: list[str] | None = None) -> int:
     approve.add_argument("--reject", action="store_true", help="record a refusal instead")
     for sub in (run, approve):
         sub.add_argument(
-            "--no-tests", action="store_true", help="do not let the Mechanic run the service tests"
+            "--allow-tests",
+            action="store_true",
+            help="let the Mechanic run the service tests - which runs the code it wrote",
         )
     cont = commands.add_parser("continue", help="patch (if approved) and verify")
     cont.add_argument("task")
@@ -101,27 +104,35 @@ def main(argv: list[str] | None = None) -> int:
         print(f"codebase-team: {exc}", file=sys.stderr)
         return 2
 
-    commands_allowed = [] if getattr(args, "no_tests", False) else [TESTS_COMMAND]
-    if args.command == "run":
-        current, message = team.to_gate(args.scenario)
-        print(f"{current.task_id}: {message}")
-        if args.approve and message.startswith("Waiting"):
-            team.approve(
-                current, args.approve, args.rationale or "Approved on the command line.", commands_allowed
+    commands_allowed = [TESTS_COMMAND] if getattr(args, "allow_tests", False) else []
+    try:
+        if args.command == "run":
+            current, message = team.to_gate(args.scenario)
+            print(f"{current.task_id}: {message}")
+            if args.approve and message.startswith("Waiting"):
+                team.approve(
+                    current, args.approve, args.rationale or "Approved on the command line.", commands_allowed
+                )
+                print(team.past_gate(current, args.mechanic, args.remember))
+            elif message.startswith("Waiting"):
+                print(
+                    f"Review {current.artifacts}, then:\n  codebase-team approve {current.task_id} "
+                    "--path <file> --rationale <why> [--allow-tests]\n"
+                    f"  codebase-team continue {current.task_id}"
+                )
+        elif args.command == "approve":
+            current = load_run(config.runs_dir, args.task)
+            record = team.approve(
+                current, args.path, args.rationale, commands_allowed, approved=not args.reject
             )
+            decision = "refused" if args.reject else f"approved {', '.join(record.allowed_paths)}"
+            print(f"{current.task_id}: {decision}")
+        else:
+            current = load_run(config.runs_dir, args.task)
             print(team.past_gate(current, args.mechanic, args.remember))
-        elif message.startswith("Waiting"):
-            print(
-                f"Review {current.artifacts}, then:\n  codebase-team approve {current.task_id} --path <file> "
-                f"--rationale <why>\n  codebase-team continue {current.task_id}"
-            )
-    elif args.command == "approve":
-        current = load_run(config.runs_dir, args.task)
-        team.approve(current, args.path, args.rationale, commands_allowed, approved=not args.reject)
-        print(f"{current.task_id}: {'refused' if args.reject else 'approved ' + ', '.join(args.path)}")
-    else:
-        current = load_run(config.runs_dir, args.task)
-        print(team.past_gate(current, args.mechanic, args.remember))
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"codebase-team: {exc}", file=sys.stderr)
+        return 2
     print(f"\nArtifacts: {current.artifacts}\nTrajectory: {current.trajectory_path}")
     return 0
 

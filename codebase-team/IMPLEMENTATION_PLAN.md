@@ -49,7 +49,7 @@ codebase-team/
     mechanic.py     # Mechanic port + agent (Deep Agents) and human implementations
     orchestrator.py # the pipeline and the approval gate
     evals.py        # artifact, trajectory, permission, evidence and outcome evals
-    inspect.py      # replay a run from its artifacts
+    inspection.py   # replay a run from its artifacts
     cli.py          # create-run / run / approve / continue / evals / inspect / list
   skills/repair-issue/SKILL.md
   tests/

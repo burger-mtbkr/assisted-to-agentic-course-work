@@ -2,7 +2,8 @@
 
 Five groups, all computed from a run's artifacts, trajectory and workspace - no model:
   artifact    - each handoff has what its receiver needs
-  trajectory  - specialists ran in the intended order; nothing patched before approval
+  trajectory  - specialists ran in the intended order; nothing patched before approval, every
+                patch verified, and the run came to rest
   permission  - no patch without approval, edits inside the boundary, original untouched,
                 Doctor and Librarian left the workspace as they found it
   evidence    - every claim cites a check, a file, a note, a commit or a diff
@@ -15,9 +16,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from agent_kit.mount import grant_covers
+
 from codebase_team.artifacts import (
     HANDOFFS,
-    ApprovalRecord,
     Artifact,
     ArtifactError,
     ContextBrief,
@@ -26,7 +28,6 @@ from codebase_team.artifacts import (
     VerificationReport,
     read_artifact,
 )
-from codebase_team.mechanic import allowed
 from codebase_team.trajectory import Trajectory
 from codebase_team.workspace import Run, fingerprint
 
@@ -57,12 +58,31 @@ def _first(events: list[dict[str, Any]], predicate: Any) -> int | None:
     return next((e["seq"] for e in events if predicate(e)), None)
 
 
+def approval_in_force(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The approval the last patch ran under: the last one recorded before it. Without a
+    patch, the latest one."""
+    applied = [e["seq"] for e in events if e["event"] == "patch_applied"]
+    cutoff = applied[-1] if applied else float("inf")
+    approvals = [e for e in events if e["event"] == "approval_recorded" and e["seq"] < cutoff]
+    return approvals[-1] if approvals else None
+
+
 def trajectory_evals(events: list[dict[str, Any]]) -> list[EvalResult]:
     def requested(kind: str) -> list[int]:
         return [e["seq"] for e in events if e["event"] == "specialist_request" and e["request_type"] == kind]
 
     results = []
-    diagnose, context, verify = (requested(k) for k in ("diagnose", "retrieve_context", "verify"))
+    last = events[-1]["event"] if events else None
+    at_rest = last in ("workflow_end", "awaiting_approval", "approval_recorded")
+    results.append(
+        EvalResult(
+            "trajectory",
+            "run at rest",
+            at_rest,
+            "ended, or waiting at the approval gate" if at_rest else f"stopped mid-step after {last}",
+        )
+    )
+    diagnose, context = requested("diagnose"), requested("retrieve_context")
     order_ok = not context or (diagnose and diagnose[0] < context[0])
     results.append(
         EvalResult(
@@ -95,7 +115,8 @@ def trajectory_evals(events: list[dict[str, Any]]) -> list[EvalResult]:
             )
         )
     if applied_seqs:
-        ok = any(v > max(applied_seqs) for v in verify)
+        verified = [e["seq"] for e in events if e["event"] == "verification_result"]
+        ok = any(v > max(applied_seqs) for v in verified)
         results.append(
             EvalResult(
                 "trajectory",
@@ -133,9 +154,18 @@ def permission_evals(
         )
     )
     changed = run.changed_files()
-    approval = loaded.get(ApprovalRecord)
     if changed:
-        granted = isinstance(approval, ApprovalRecord) and approval.approved
+        patched = any(e["event"] == "patch_applied" for e in events)
+        results.append(
+            EvalResult(
+                "permission",
+                "edits came from the patch step",
+                patched,
+                "a patch was applied" if patched else "the workspace changed with no patch applied",
+            )
+        )
+        approval = approval_in_force(events)
+        granted = bool(approval and approval["approved"])
         results.append(
             EvalResult(
                 "permission",
@@ -146,7 +176,8 @@ def permission_evals(
                 else "the workspace changed without approval",
             )
         )
-        outside = [p for p in changed if not (granted and allowed(p, approval))]
+        grants = approval["allowed_paths"] if granted else []
+        outside = [p for p in changed if not grant_covers(grants, run.workspace, p)]
         results.append(
             EvalResult(
                 "permission",
@@ -217,6 +248,19 @@ def outcome_evals(loaded: dict[type[Artifact], Artifact], events: list[dict[str,
                 "the diagnosed failure is fixed",
                 not still,
                 "the failing test now passes" if not still else f"still failing: {', '.join(still)}",
+            )
+        )
+        before, after = diagnosis.test_counts, verification.test_counts
+        lost = after.get("total", 0) < before.get("total", 0) or after.get("skipped", 0) > before.get(
+            "skipped", 0
+        )
+        results.append(
+            EvalResult(
+                "outcome",
+                "no test lost or skipped",
+                not lost,
+                f"tests: {before.get('total', 0)} -> {after.get('total', 0)}, skipped: "
+                f"{before.get('skipped', 0)} -> {after.get('skipped', 0)}",
             )
         )
     return results

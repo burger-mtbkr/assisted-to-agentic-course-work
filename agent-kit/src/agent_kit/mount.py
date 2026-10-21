@@ -263,35 +263,26 @@ class GrantedWriteBackend(GitScopedBackend):
     A grant is a root-relative file, or a directory ending in `/`. A requested path is
     resolved inside the root before it is compared, so `src/Api/../../.env`, a link, or a
     case trick cannot stretch a grant. The root itself cannot be granted.
+
+    Inside a granted directory, two kinds of path are still refused unless granted by
+    exact name: anything git ignores, and git's own files (`.gitignore`, `.gitattributes`).
+    A file git ignores is invisible to every diff and review after it - writing a
+    `.gitignore` first, then the file it hides, would be an edit no one sees.
     """
 
     def __init__(self, root: str | Path, grants: Iterable[str]):
         super().__init__(root)
-        cleaned = set()
-        for grant in grants:
-            rel = normalize(grant)
-            if not rel or ".." in rel.split("/"):
-                raise ValueError(f"Cannot grant {grant!r}: grants are files or directories inside the root.")
-            cleaned.add(rel + "/" if grant.replace("\\", "/").endswith("/") else rel)
-        self.grants = frozenset(cleaned)
+        self.grants = frozenset(canonical_grant(grant) for grant in grants)
 
     def granted(self, path: str) -> bool:
-        try:
-            resolved = self._resolve_path(path)
-        except ValueError:
-            return False
-        rel = resolved.relative_to(self.cwd).as_posix()
-        if os.path.normcase(rel) != os.path.normcase(normalize(path)):
-            return False  # reached through a link
-        key = os.path.normcase(rel)
-        return any(
-            key == os.path.normcase(g) or (g.endswith("/") and key.startswith(os.path.normcase(g)))
-            for g in self.grants
-        )
+        return grant_covers(self.grants, self.cwd, path)
 
     def _refused(self, path: str) -> str:
         granted = ", ".join(sorted(self.grants)) or "none"
-        return f"Refusing to modify {path}: not an approved path (approved: {granted})."
+        return (
+            f"Refusing to modify {path}: not an approved path (approved: {granted}; files git ignores "
+            "and git's own files need an exact grant)."
+        )
 
     def write(self, file_path: str, content: str) -> WriteResult:
         if not self.granted(file_path):
@@ -301,7 +292,15 @@ class GrantedWriteBackend(GitScopedBackend):
     def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> EditResult:
         if not self.granted(file_path):
             return EditResult(error=self._refused(file_path))
-        return FilesystemBackend.edit(self, file_path, old_string, new_string, replace_all)
+        target = self._resolve_path(file_path)
+        crlf = target.is_file() and b"\r\n" in target.read_bytes()
+        result = FilesystemBackend.edit(self, file_path, old_string, new_string, replace_all)
+        if crlf and result.error is None:
+            # Deep Agents reads with universal newlines and writes "\n": put the file's own
+            # line endings back, so a one-line edit stays a one-line diff.
+            text = target.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+            target.write_bytes(text)
+        return result
 
     def delete(self, file_path: str) -> DeleteResult:
         if not self.granted(file_path):
@@ -315,3 +314,36 @@ class GrantedWriteBackend(GitScopedBackend):
             else FileUploadResponse(path=p, error="permission_denied")
             for p, data in files
         ]
+
+
+def canonical_grant(grant: str) -> str:
+    """A grant as root-relative POSIX: `dir/` for a directory, `file` for a file."""
+    rel = normalize(grant)
+    if not rel or ".." in rel.split("/"):
+        raise ValueError(f"Cannot grant {grant!r}: grants are files or directories inside the root.")
+    return rel + "/" if grant.replace("\\", "/").rstrip().endswith("/") else rel
+
+
+def _ignored(root: Path, rel: str) -> bool:
+    result = _git(root, "check-ignore", "-q", "--no-index", "--", rel)
+    return result is None or result.returncode != 1  # 0 = ignored; anything else = cannot tell, so refuse
+
+
+def grant_covers(grants: Iterable[str], root: Path, path: str) -> bool:
+    """Whether `path` is inside a grant - the one rule the mount and every later check share."""
+    root = Path(root).resolve()
+    rel = normalize(path)
+    if not rel or ".." in rel.split("/"):
+        return False
+    resolved = (root / rel).resolve()
+    if not resolved.is_relative_to(root):
+        return False
+    if os.path.normcase(resolved.relative_to(root).as_posix()) != os.path.normcase(rel):
+        return False  # reached through a link
+    key = os.path.normcase(rel)
+    exact = any(key == os.path.normcase(g) for g in grants)
+    if exact:
+        return True
+    inside = any(g.endswith("/") and key.startswith(os.path.normcase(g)) for g in grants)
+    name = rel.rsplit("/", 1)[-1]
+    return inside and not name.startswith(".git") and not _ignored(root, rel)

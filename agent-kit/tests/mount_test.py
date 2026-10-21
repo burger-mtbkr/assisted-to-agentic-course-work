@@ -231,3 +231,20 @@ def test_a_grant_cannot_be_stretched_by_a_link(repo, tmp_path):
 def test_the_root_and_paths_outside_it_cannot_be_granted(repo, grant):
     with pytest.raises(ValueError, match="Cannot grant"):
         GrantedWriteBackend(repo, [grant])
+
+
+def test_inside_a_granted_directory_ignored_and_git_files_need_an_exact_grant(repo):
+    backend = GrantedWriteBackend(repo, ["src/Api/"])
+    (repo / ".gitignore").write_text(".env\nnode_modules/\nsrc/Api/Hidden.cs\n", encoding="utf-8")
+    assert "not an approved path" in backend.write("/src/Api/.gitignore", "Hidden.cs\n").error
+    assert "not an approved path" in backend.write("/src/Api/Hidden.cs", "class Hidden {}\n").error
+    assert not (repo / "src/Api/Hidden.cs").exists()
+    exact = GrantedWriteBackend(repo, ["src/Api/", "src/Api/.gitignore"])
+    assert exact.write("/src/Api/.gitignore", "x\n").error is None
+
+
+def test_an_edit_keeps_the_files_line_endings(repo):
+    (repo / "src/Api/App.cs").write_bytes(b"line one\r\nline two\r\nline three\r\n")
+    backend = GrantedWriteBackend(repo, ["src/Api/App.cs"])
+    assert backend.edit("/src/Api/App.cs", "line two", "line 2").error is None
+    assert (repo / "src/Api/App.cs").read_bytes() == b"line one\r\nline 2\r\nline three\r\n"

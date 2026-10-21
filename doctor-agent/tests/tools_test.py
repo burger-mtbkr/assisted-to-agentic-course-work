@@ -76,11 +76,22 @@ def test_both_checks_never_run_at_the_same_time(codebase):
     assert time.perf_counter() - started >= 3.0  # one after the other, never overlapping
 
 
-def test_the_model_key_is_withheld_from_the_checks(codebase, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "secret-key")
-    monkeypatch.setenv("UNRELATED_SETTING", "kept")
-    command = py("import os; print(os.environ.get('GEMINI_API_KEY'), os.environ.get('UNRELATED_SETTING'))")
-    assert run_check("run_tests", "tests", command, codebase, 30)["stdout"] == "None kept"
+def test_checks_get_only_what_toolchains_need(codebase, monkeypatch):
+    for name, value in {
+        "GEMINI_API_KEY": "k",
+        "AWS_SECRET_ACCESS_KEY": "s",
+        "GITHUB_TOKEN": "t",
+        "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    }.items():
+        monkeypatch.setenv(name, value)
+    names = (
+        "['GEMINI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN', 'DOTNET_CLI_TELEMETRY_OPTOUT', 'PATH']"
+    )
+    command = py(f"import os; print([n in os.environ for n in {names}])")
+    assert (
+        run_check("run_tests", "tests", command, codebase, 30)["stdout"]
+        == "[False, False, False, True, True]"
+    )
 
 
 def test_tools_take_no_arguments_and_return_json(config):

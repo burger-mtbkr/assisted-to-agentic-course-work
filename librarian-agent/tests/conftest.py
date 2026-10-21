@@ -10,7 +10,7 @@ from librarian_agent.config import LibrarianConfig
 from librarian_agent.embeddings import HashingEmbedder
 from librarian_agent.indexer import build_index
 from librarian_agent.notes import NoteStore
-from librarian_agent.store import MemoryIndex
+from librarian_agent.store import EmbeddingCache, MemoryIndex
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -98,5 +98,12 @@ def notes(config):
 @pytest.fixture
 def index(config, notes):
     index = MemoryIndex(config.db_path)
-    build_index(config.codebase_path, config.knowledge_dir, notes, index, HashingEmbedder())
+    build_index(
+        config.codebase_path,
+        config.knowledge_dir,
+        notes,
+        index,
+        HashingEmbedder(),
+        EmbeddingCache(config.cache_path),
+    )
     return index

@@ -11,12 +11,14 @@ Relationships, each with evidence and a confidence:
   term -<relationship>-> term      knowledge graph edges               1.0
   file -tested_in-> test file      naming convention (XTests.cs, x.test.ts)  0.9
   note -explains-> file or term    the note's sources and entities     the note's confidence
+                                   (only sources that are indexed files, only known terms)
   note -supersedes-> note          a correction                        1.0
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -24,9 +26,9 @@ from pathlib import Path, PurePosixPath
 import yaml
 from agent_kit.mount import visible_files
 
-from librarian_agent.embeddings import Embedder, Vector
+from librarian_agent.embeddings import Embedder, Vector, batches
 from librarian_agent.notes import MemoryNote, NoteStore
-from librarian_agent.store import Chunk, Edge, MemoryIndex
+from librarian_agent.store import Chunk, Edge, EmbeddingCache, MemoryIndex
 
 INDEXED_SUFFIXES = {".md", ".cs", ".ts", ".yaml", ".yml"}
 CHUNK_LINES = 60
@@ -90,11 +92,12 @@ def tested_in_edges(paths: list[str]) -> list[Edge]:
     edges = []
     for test in (p for p in paths if kind_of(p) == "test"):
         name = PurePosixPath(test).name
-        target = (
-            name.removesuffix("Tests.cs") + ".cs"
-            if name.endswith("Tests.cs")
-            else name.replace(".test.", ".")
-        )
+        if name.endswith("Tests.cs"):
+            target = name.removesuffix("Tests.cs") + ".cs"
+        elif ".test." in name:
+            target = name.replace(".test.", ".")
+        else:
+            continue  # a helper in the test project (GlobalUsings, fixtures) tests nothing by name
         for source in by_name.get(target, []):
             edges.append(
                 Edge(f"file:{source}", "tested_in", f"file:{test}", f"naming convention: {name}", 0.9)
@@ -133,15 +136,19 @@ def import_knowledge_graph(knowledge_dir: Path, codebase: Path, index: MemoryInd
     index.add_edges(edges)
 
 
-def embed(texts: list[str], embedder: Embedder, index: MemoryIndex) -> list[Vector]:
-    """Document vectors, from the cache where the exact text was embedded before."""
+def embed(texts: list[str], embedder: Embedder, cache: EmbeddingCache) -> list[Vector]:
+    """Document vectors, from the cache where the exact text was embedded before. New
+    vectors are cached batch by batch, so an interrupted build keeps what it paid for."""
     shas = [hashlib.sha1(t.encode("utf-8")).hexdigest() for t in texts]
-    known = index.cached_vectors(embedder.name, shas)
-    missing = list(dict.fromkeys(sha for sha in shas if sha not in known))
-    if missing:
-        text_for = dict(zip(shas, texts, strict=True))
-        fresh = dict(zip(missing, embedder.embed_documents([text_for[sha] for sha in missing]), strict=True))
-        index.cache_vectors(embedder.name, fresh)
+    known = cache.get(embedder.name, shas)
+    text_for = dict(zip(shas, texts, strict=True))
+    missing = [text_for[sha] for sha in dict.fromkeys(shas) if sha not in known]
+    for batch in batches(missing):
+        fresh = {
+            hashlib.sha1(t.encode("utf-8")).hexdigest(): v
+            for t, v in zip(batch, embedder.embed_documents(batch), strict=True)
+        }
+        cache.put(embedder.name, fresh)
         known |= fresh
     return [known[sha] for sha in shas]
 
@@ -150,56 +157,81 @@ def note_chunk(note: MemoryNote) -> Chunk:
     return Chunk(f"note:{note.id}", "note", None, None, note.embedding_text(), note.status)
 
 
-def note_edges(note: MemoryNote) -> list[Edge]:
+def note_edges(note: MemoryNote, files: set[str], terms: set[str]) -> list[Edge]:
+    """A note's links into the graph - only to files the index holds and terms it knows;
+    user and commit sources stay provenance on the note itself."""
     evidence = f"note {note.id}"
+    node = f"note:{note.id}"
     edges = [
-        Edge(f"note:{note.id}", "explains", f"file:{s}", evidence, note.confidence) for s in note.sources
+        Edge(node, "explains", f"file:{s}", evidence, note.confidence) for s in note.sources if s in files
     ]
     edges += [
-        Edge(f"note:{note.id}", "explains", f"term:{e}", evidence, note.confidence) for e in note.entities
+        Edge(node, "explains", f"term:{e}", evidence, note.confidence) for e in note.entities if e in terms
     ]
-    edges += [Edge(f"note:{note.id}", "supersedes", f"note:{old}", evidence, 1.0) for old in note.supersedes]
+    edges += [Edge(node, "supersedes", f"note:{old}", evidence, 1.0) for old in note.supersedes]
     return edges
 
 
-def index_note(note: MemoryNote, index: MemoryIndex, embedder: Embedder) -> None:
-    """Add or refresh one note without rebuilding everything (used right after remembering)."""
+def _note_entity(index: MemoryIndex, note: MemoryNote) -> None:
     index.add_entity(
         f"note:{note.id}", "note", note.title, summary=note.statement, source=f"notes/{note.id}.md"
     )
-    index.replace_note_chunk(note_chunk(note), embed([note.embedding_text()], embedder, index)[0])
-    index.add_edges(note_edges(note))
+
+
+def index_note(note: MemoryNote, index: MemoryIndex, embedder: Embedder, cache: EmbeddingCache) -> None:
+    """Add one note to a built index right after it is remembered.
+
+    Statuses and links first, the vector last: if embedding fails, what the index says
+    about which notes are current is still right, and only semantic recall of the new
+    note is missing until the next `librarian index`.
+    """
     for old in note.supersedes:
         index.set_note_status(old, "superseded")
+    _note_entity(index, note)
+    terms = {e["id"].removeprefix("term:") for e in index.entities(["term"])}
+    index.add_edges(note_edges(note, set(index.documents()), terms))
+    index.replace_note_chunk(note_chunk(note), embed([note.embedding_text()], embedder, cache)[0])
 
 
 def build_index(
-    codebase: Path, knowledge_dir: Path, notes: NoteStore, index: MemoryIndex, embedder: Embedder
+    codebase: Path,
+    knowledge_dir: Path,
+    notes: NoteStore,
+    index: MemoryIndex,
+    embedder: Embedder,
+    cache: EmbeddingCache,
 ) -> IndexReport:
-    index.reset(embedder.name)
+    """Build into a side file and swap it in only when complete: a failed build leaves the
+    previous index in place, never a half-filled one."""
+    building = MemoryIndex(index.db_path.with_name(index.db_path.stem + ".building.db"))
+    building.db_path.unlink(missing_ok=True)
+    building.reset()
     paths = [p for p in visible_files(codebase) if indexable(p)]
     chunks: list[Chunk] = []
     for path in paths:
         raw = (codebase / path).read_bytes()
-        index.add_document(path, kind_of(path), hashlib.sha1(raw).hexdigest())
-        index.add_entity(f"file:{path}", "file", PurePosixPath(path).name, source=path)
+        building.add_document(path, kind_of(path), hashlib.sha1(raw).hexdigest())
+        building.add_entity(f"file:{path}", "file", PurePosixPath(path).name, source=path)
         lines = raw.decode("utf-8", "replace").splitlines()
         for start, end in chunk_lines(lines, markdown=path.endswith(".md")):
             text = "\n".join(lines[start - 1 : end]).strip()
             if text:
                 chunks.append(Chunk(path, kind_of(path), start, end, f"{path} lines {start}-{end}\n{text}"))
-    index.add_chunks(chunks, embed([c.text for c in chunks], embedder, index))
-    index.add_edges(tested_in_edges(paths))
-    import_knowledge_graph(knowledge_dir, codebase, index)
+    building.add_chunks(chunks, embed([c.text for c in chunks], embedder, cache))
+    building.add_edges(tested_in_edges(paths))
+    import_knowledge_graph(knowledge_dir, codebase, building)
     all_notes = notes.list()
     if all_notes:
-        vectors = embed([n.embedding_text() for n in all_notes], embedder, index)
-        index.add_chunks([note_chunk(n) for n in all_notes], vectors)
+        terms = {e["id"].removeprefix("term:") for e in building.entities(["term"])}
+        building.add_chunks(
+            [note_chunk(n) for n in all_notes],
+            embed([n.embedding_text() for n in all_notes], embedder, cache),
+        )
         for note in all_notes:
-            index.add_entity(
-                f"note:{note.id}", "note", note.title, summary=note.statement, source=f"notes/{note.id}.md"
-            )
-            index.add_edges(note_edges(note))
+            _note_entity(building, note)
+            building.add_edges(note_edges(note, set(paths), terms))
+    building.seal(embedder.name)
+    os.replace(building.db_path, index.db_path)
     stats = index.stats()
     return IndexReport(
         documents=len(paths),

@@ -11,11 +11,12 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 class ScriptedModel(BaseChatModel):
     """Replies from a script (an `Exception` entry is raised), and remembers what the
-    harness offered it and every message list it was sent."""
+    harness offered it, the tool_choice of each call, and every message list it was sent."""
 
     model_name: str = "scripted"
     replies: list[Any]
     offered_tools: list[str] = []
+    tool_choices: list[Any] = []
     seen: list[list[Any]] = []
 
     @property
@@ -27,6 +28,7 @@ class ScriptedModel(BaseChatModel):
 
     def bind_tools(self, tools: Any, **kwargs: Any) -> ScriptedModel:
         self.offered_tools = sorted(t["name"] if isinstance(t, dict) else t.name for t in tools)
+        self.tool_choices.append(kwargs.get("tool_choice"))
         return self
 
     def _generate(

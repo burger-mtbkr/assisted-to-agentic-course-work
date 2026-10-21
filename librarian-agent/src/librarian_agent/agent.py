@@ -17,7 +17,7 @@ from librarian_agent.config import LibrarianConfig
 from librarian_agent.embeddings import Embedder, GeminiEmbedder, HashingEmbedder
 from librarian_agent.notes import NoteStore
 from librarian_agent.prompts import SYSTEM_PROMPT
-from librarian_agent.store import MemoryIndex
+from librarian_agent.store import EmbeddingCache, MemoryIndex
 from librarian_agent.tools import LibrarianTools
 
 # No filesystem writes of any kind: notes go through remember_decision only.
@@ -36,6 +36,7 @@ def build_tools(config: LibrarianConfig, embedder: Embedder) -> LibrarianTools:
         NoteStore(config.notes_dir),
         MemoryIndex(config.db_path),
         embedder,
+        EmbeddingCache(config.cache_path),
         config.retrievals_dir,
     )
 
