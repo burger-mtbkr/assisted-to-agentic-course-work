@@ -95,3 +95,53 @@
 - **Reflections**: The quota failure was an unplanned test of the crash path,
   and it behaved: the run said why it stopped, and continuing on another model
   picked up from the gate without redoing the diagnosis.
+
+## Agent Hub: one browser UI over every agent
+
+- **Prompt**: "run module 6 so I can use it", then "I want a react UI with MUI
+  controls ... history, new session buttons etc like Claude has", then "one
+  UI for the different agents ... pick between the doctor, the librarian, the
+  pair agent", "best in class ... light and dark mode".
+- **Tool**: Claude Code (VS Code extension)
+- **Mode**: Agent. Reviewer subagent on the first (PAIR-only) web UI; its
+  findings were designed into the hub rather than patched.
+- **Context**: `pair-agent/`, `agent-kit/`, `doctor-agent/`,
+  `librarian-agent/`, `codebase-team/`
+- **Model**: Claude Opus 5.5 building. Gemini free tier live:
+  `gemini-flash-lite-latest` (PAIR, Mechanic), `gemini-3.1-flash-lite`
+  (Doctor, Librarian).
+- **Input**: Four agents in four uv projects, three of them chat agents with
+  different loops (a hand-rolled one and Deep Agents), and one workflow with a
+  human gate.
+- **Output**:
+  - `agent-hub/` at the repo root: one uv environment importing the agents as
+    path dependencies, a Starlette API, and a React 19 + MUI 9 UI (Inter, light,
+    dark and system themes, Ctrl+K and Ctrl+Shift+O).
+  - Chats with PAIR, Doctor and Librarian: streamed tokens, live tool calls with
+    readable results, loaded skills named as skills, working memory, the
+    agent's tools, skills and prompt, export and import (PAIR exports `/save`
+    format), per-agent free-model picker kept across restarts.
+  - Codebase Team runs in the browser: start (with a seeded regression), a
+    step tracker, the approval form, diagnosis, brief, patch, diff,
+    verification and the 23 evals.
+  - Stop waits for a running tool and ends before the next model call, then
+    rolls the turn back; a stopped first turn discards the empty chat and
+    returns the text to the composer. A turn outlives a reload.
+  - Upstream: agent-kit events carry the tool call id; `Team.gate(run)` split
+    from `to_gate`; `open_runtime` takes provider settings as a mapping so the
+    hub never loads a `.env` into the environment the Doctor's test
+    subprocesses inherit.
+  - Live: PAIR, Librarian (two turns, resumed from saved state) and Doctor
+    (real tests and lint) answered through the hub; a Stop during the
+    Doctor's test run waited ~2 minutes for it, then rolled back. A full Team
+    run `task-20261022-005543-80a3` driven through the UI was approved in the
+    browser, verified, and passed 23/23 evals, changing only
+    `ErrorMiddleware.cs`.
+- **Cost**: Free tier. `gemini-flash-latest` and `gemini-3.5-flash` hit their
+  daily quota during the session, which is why the model picker exists.
+- **Reflections**: The first version put the UI inside `pair-agent/`; asking
+  for every agent turned it into its own project, and the web code moved
+  rather than being copied. The hard part was not the UI but Stop: cancelling
+  an asyncio task does not stop a tool in a worker thread, so a "stopped" test
+  run kept going under the next turn. Stopping at the next safe point instead
+  of cancelling made both agent families behave the same way.

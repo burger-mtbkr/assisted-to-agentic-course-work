@@ -161,11 +161,23 @@ Use `/journal` to add one to the current module's `JOURNAL.md`.
   - Every specialist answers within a per-turn budget (`agent-kit`'s
     `RoundBudget`, 12 model calls). Gemini ignores `tool_choice="none"`, so
     a final round is enforced on the reply, not requested.
+- `agent-hub/` - one browser UI over all of the above: `uv run --project
+  agent-hub agent-hub` (http://127.0.0.1:8765), after `npm --prefix
+  agent-hub/web install` and `npm --prefix agent-hub/web run build`. Chats
+  with the PAIR Agent, the Doctor and the Librarian, saved in the git-ignored
+  `agent-hub/.sessions/`; Codebase Team runs with the approval gate in the
+  browser. React + MUI in `agent-hub/web/`. It imports the agents as
+  libraries (one uv environment, path dependencies), so they are not
+  duplicated: a change to an agent shows up in the hub. It never loads an
+  agent's `.env` into `os.environ` (the Doctor keeps the key out of what its
+  test subprocesses inherit); `pair_agent.runtime.open_runtime` takes the
+  provider settings as a mapping for that reason.
 - Gemini free tier is about 20 requests per model per day (reset midnight
   Pacific), and an agent turn costs one request per tool round. Probe with
   one-word prompts, and switch `GEMINI_MODEL` to another free model
   (`gemini-flash-lite-latest`, `gemini-3.5-flash`, `gemini-3.1-flash-lite`,
-  `gemma-4-31b-it`) when one model's quota is spent.
+  `gemma-4-31b-it`) when one model's quota is spent (in `agent-hub`, use its
+  model picker).
 - Model providers: never call a paid AI or cloud API (or use credentials
   found on the machine) without the user's explicit approval for that
   provider. The PAIR Agent and the Phase 3 specialists use Gemini's free tier

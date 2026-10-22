@@ -8,6 +8,28 @@ from typing import Protocol
 from pair_agent.tools import Tool, ToolRegistry
 
 
+def validate_conversation(loaded: object) -> list[dict]:
+    """A saved conversation, minus its system prompt, checked so that a bad file cannot
+    leave the array in a state the provider will reject on every later turn."""
+    if not isinstance(loaded, list) or not all(isinstance(m, dict) for m in loaded):
+        raise ValueError("expected a JSON list of message objects")
+    messages = [m for m in loaded if m.get("role") != "system"]
+    pending: set[str] = set()
+    for message in messages:
+        role = message.get("role")
+        if role not in ("user", "assistant", "tool") or not isinstance(message.get("content", ""), str):
+            raise ValueError(f"unexpected message: {str(message)[:80]}")
+        if role == "tool":
+            pending.discard(message.get("tool_call_id"))
+            continue
+        if pending:
+            raise ValueError(f"tool call(s) without results: {', '.join(sorted(pending))}")
+        pending = {call["id"] for call in message.get("tool_calls", [])}
+    if pending:
+        raise ValueError(f"tool call(s) without results: {', '.join(sorted(pending))}")
+    return messages
+
+
 class Provider(Protocol):
     async def complete(self, messages: list[dict], tools: list[Tool]) -> dict: ...
 
@@ -31,12 +53,12 @@ class PairAgent:
         self.messages = self.messages[:1]
 
     async def send(self, text: str) -> str:
-        """One user turn. If anything fails mid-turn, the turn is rolled back whole so the
-        array never holds a tool call without its result."""
+        """One user turn. If anything fails, or the turn is cancelled, mid-turn, the turn is
+        rolled back whole so the array never holds a tool call without its result."""
         turn_start = len(self.messages)
         try:
             return await self._turn(text)
-        except Exception:
+        except BaseException:
             del self.messages[turn_start:]
             raise
 
@@ -52,8 +74,8 @@ class PairAgent:
             for call in calls:
                 self.on_event("tool_call", call)
                 outcome = await self.registry.execute(call["name"], call["arguments"])
-                self.on_event("tool_result", {"name": call["name"], "is_error": outcome.is_error,
-                                              "chars": len(outcome.content)})
+                self.on_event("tool_result", {"id": call["id"], "name": call["name"],
+                                              "is_error": outcome.is_error, "chars": len(outcome.content)})
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": call["id"],

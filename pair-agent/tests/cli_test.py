@@ -2,8 +2,8 @@
 
 import pytest
 
-from pair_agent.agent import PairAgent
-from pair_agent.cli import _handle_command, validate_conversation
+from pair_agent.agent import PairAgent, validate_conversation
+from pair_agent.cli import _handle_command
 from pair_agent.tools import ToolRegistry
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import httpx
@@ -20,6 +21,9 @@ from pair_agent.tools import Tool
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 DEFAULT_MODEL = "gemini-flash-latest"
+# Free-tier models, each with its own daily request quota: when one is spent, switch to another.
+FREE_MODELS = ("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.1-flash-lite",
+               "gemma-4-31b-it")
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 _STATUS_HINTS = {
@@ -133,12 +137,12 @@ class GeminiProvider:
         )
 
     @classmethod
-    def from_env(cls) -> GeminiProvider:
-        api_key = os.environ.get("GEMINI_API_KEY")
+    def from_env(cls, environ: Mapping[str, str | None] = os.environ) -> GeminiProvider:
+        api_key = environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ProviderError("GEMINI_API_KEY is not set. Put it in the environment or in "
                                 "pair-agent/.env (see .env.example).")
-        return cls(api_key, os.environ.get("GEMINI_MODEL", DEFAULT_MODEL))
+        return cls(api_key, environ.get("GEMINI_MODEL") or DEFAULT_MODEL)
 
     async def complete(self, messages: list[dict], tools: list[Tool]) -> dict:
         body = {"model": self.model, "messages": to_chat_messages(messages), "max_tokens": self.max_tokens}

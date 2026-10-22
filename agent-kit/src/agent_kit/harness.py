@@ -248,7 +248,8 @@ class Session:
         return next(e["text"] for e in self.stream(user_message) if e["type"] == "final")
 
     def stream(self, user_message: str) -> Iterator[dict[str, Any]]:
-        """Run one turn, yielding token / tool_call / tool_result events, then one final event.
+        """Run one turn, yielding token / tool_call / tool_result events (calls and results
+        carry the call's id), then one final event.
 
         The conversation only advances if the turn completes: on an error the
         messages are left as they were, so the session stays usable.
@@ -315,7 +316,7 @@ class Turn:
             if skill := skill_read(call):
                 self.recorder.conversation("skill_read", trace_id=self.trace_id, skill=skill)
                 self.recorder.trace("skill_load", self.trace_id, skill=skill)
-            yield {"type": "tool_call", "name": call["name"], "args": call["args"]}
+            yield {"type": "tool_call", "id": call["id"], "name": call["name"], "args": call["args"]}
 
     def tool_returned(self, message: ToolMessage) -> dict[str, Any]:
         name, called_at = self.pending.pop(message.tool_call_id, (message.name or "tool", self.mark))
@@ -341,7 +342,14 @@ class Turn:
             duration_ms=round((self.mark - called_at) * 1000),
             status=status,
         )
-        return {"type": "tool_result", "name": name, "status": status, **fields}
+        return {
+            "type": "tool_result",
+            "id": message.tool_call_id,
+            "name": name,
+            "status": status,
+            "chars": len(content),
+            **fields,
+        }
 
     def failed(self, exc: BaseException) -> None:
         self.recorder.conversation("error", trace_id=self.trace_id, error=f"{type(exc).__name__}: {exc}")

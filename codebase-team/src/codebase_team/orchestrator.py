@@ -254,10 +254,15 @@ class Team:
 
     def to_gate(self, scenario: str | None = None) -> tuple[Run, str]:
         run = self.start(scenario)
+        return run, self.gate(run)
+
+    def gate(self, run: Run) -> str:
+        """Diagnose and brief a started run, stopping at the approval gate. Split from
+        `start` so a caller can show the run while this, the long part, is under way."""
         try:
-            return run, self._to_gate(run)
+            return self._to_gate(run)
         except SourceChanged as exc:
-            return run, self.finish(run, "source_changed", f"Stopped: {exc}.")
+            return self.finish(run, "source_changed", f"Stopped: {exc}.")
 
     def _to_gate(self, run: Run) -> str:
         diagnosis = self.diagnose(run)

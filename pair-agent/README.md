@@ -35,6 +35,11 @@ In the session, type a message, or one of:
 
 Tool calls are printed as they happen (`-> name(args)`, `<- name: ok, N chars`).
 
+## Browser UI
+
+The PAIR Agent is also one of the agents in `agent-hub/`, the repo's browser
+UI over every agent: `uv run --project agent-hub agent-hub` (see its README).
+
 ## Settings
 
 | Variable | Default |
